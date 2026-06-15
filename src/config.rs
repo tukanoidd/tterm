@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
 
+use crate::{EmbeddedFont, IOSEVKA_FIXED_NORMAL_FONT};
+
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -53,11 +55,13 @@ pub struct TerminalConfig {
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TerminalFontConfig {
-    #[default = 14.0]
+    #[default = 20.0]
     pub size: f32,
-    #[default = 1.3]
+    #[default = 1.0]
     pub scale_factor: f32,
-    pub font_type: FontTypeConfig,
+    pub font_type: Option<FontTypeConfig>,
+    #[default(EmbeddedFont::IosevkaFixed)]
+    pub use_embedded_font: EmbeddedFont,
 }
 
 impl From<TerminalFontConfig> for FontSettings {
@@ -66,12 +70,19 @@ impl From<TerminalFontConfig> for FontSettings {
             size,
             scale_factor,
             font_type,
+            use_embedded_font,
         }: TerminalFontConfig,
     ) -> Self {
+        tracing::debug!("{size} {scale_factor} {font_type:?} {use_embedded_font:?}");
+
         FontSettings {
             size,
             scale_factor,
-            font_type: font_type.into(),
+            font_type: font_type
+                .map(Into::into)
+                .unwrap_or_else(|| match use_embedded_font {
+                    EmbeddedFont::IosevkaFixed => IOSEVKA_FIXED_NORMAL_FONT,
+                }),
         }
     }
 }

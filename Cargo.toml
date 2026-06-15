@@ -1,30 +1,75 @@
-[package]
-name = "tterm"
+[workspace]
+members = ["tterm-macros"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 
-[dependencies]
-iced = { version = "0.14.0", features = ["advanced", "tokio"] }
-iced_aw = { version = "0.14", default-features = false, features = ["spinner"] }
-iced_fonts = { version = "0.3.0", features = ["lucide"] }
+[workspace.dependencies]
+iced = "0.14.0"
+iced_aw = { version = "0.14", default-features = false }
+iced_fonts = "0.3.0"
 iced_term = "0.8.0"
 
 directories = "6.0"
 
-tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "fs"] }
+tokio = "1.52.3"
 
-uuid = { version = "1.23", features = ["v7"] }
+uuid = "1.23"
+
+convert_case = "0.11"
 
 bon = "3.9"
-derive_more = { version = "2.1", features = ["debug", "display", "from"] }
+derive_more = "2.1"
 smart-default = "0.7"
 
-serde = { version = "1.0", features = ["derive"] }
+serde = "1.0"
 toml = "1.1.2"
 
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-subscriber = "0.3.23"
 
 rootcause = "0.13.0"
 rootcause-backtrace = "0.13.0"
+
+# Macros
+syn = "2.0"
+darling = "0.23"
+quote = "1.0"
+
+[package]
+name = "tterm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+tterm-macros.path = "tterm-macros"
+
+iced = { workspace = true, features = ["advanced", "tokio"] }
+iced_aw = { workspace = true, features = ["spinner", "badge"] }
+iced_fonts = { workspace = true, features = ["lucide"] }
+iced_term.workspace = true
+
+directories.workspace = true
+
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
+
+uuid = { workspace = true, features = ["v7"] }
+
+bon.workspace = true
+derive_more = { workspace = true, features = ["debug", "display", "from"] }
+smart-default.workspace = true
+
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
+
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+rootcause.workspace = true
+rootcause-backtrace.workspace = true

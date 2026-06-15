@@ -1,13 +1,16 @@
+pub mod components;
+
 use std::fmt::Display;
 
 use derive_more::From;
 use iced::{
     alignment::Horizontal,
-    widget::{center, column, text},
+    widget::{center, column, rule, text},
 };
 use iced_aw::Spinner;
 
 use crate::{
+    app::components::tab_bar::TabBar,
     config::Config,
     multiplex::{pane::IdPaneMessage, tab::Tab},
 };
@@ -58,14 +61,19 @@ impl App {
             AppState::Main {
                 tabs, current_tab, ..
             } => {
-                match tabs.get(*current_tab) {
+                let tab_widget = match tabs.get(*current_tab) {
                     None => center(Spinner::new().width(20).height(20)).into(),
-                    Some(tab) => {
-                        // TODO: selectable list of tabs
+                    Some(tab) => tab.view(),
+                };
 
-                        tab.view()
-                    }
-                }
+                column![
+                    TabBar::new(tabs, *current_tab).view(),
+                    rule::horizontal(2),
+                    tab_widget
+                ]
+                .spacing(10)
+                .padding(5)
+                .into()
             }
         }
     }
@@ -91,6 +99,7 @@ impl App {
 
                 return AppTask::done(AppMsg::InitTab);
             }
+
             AppMsg::InitTab => {
                 let AppState::Main {
                     config,
@@ -120,6 +129,17 @@ impl App {
 
                 return task;
             }
+            AppMsg::SelectTab(new_selected_tab) => {
+                let AppState::Main {
+                    tabs, current_tab, ..
+                } = &mut self.state
+                else {
+                    return AppTask::none();
+                };
+
+                *current_tab = new_selected_tab.clamp(0, tabs.len().saturating_sub(1));
+            }
+
             AppMsg::Pane(IdPaneMessage { id, msg }) => {
                 let AppState::Main { tabs, .. } = &mut self.state else {
                     return AppTask::none();
@@ -173,6 +193,7 @@ pub enum AppMsg {
     LoadedConfig(Box<Config>),
 
     InitTab,
+    SelectTab(usize),
 
     Pane(IdPaneMessage),
 }

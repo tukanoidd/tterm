@@ -5,16 +5,19 @@
     ...
   }: {
     nci.projects.tterm.path = ./.;
-    nci.crates.tterm = {
-      runtimeLibs = with pkgs; [
-        vulkan-loader
-        libGL
+    nci.crates = {
+      tterm = {
+        runtimeLibs = with pkgs; [
+          vulkan-loader
+          libGL
 
-        wayland
-        libx11
+          wayland
+          libx11
 
-        libxkbcommon
-      ];
+          libxkbcommon
+        ];
+      };
+      tterm-macros = {};
     };
   };
 }

@@ -5,8 +5,17 @@ pub mod multiplex;
 use rootcause::{Result, hooks::Hooks};
 use rootcause_backtrace::BacktraceCollector;
 use tracing_subscriber::prelude::*;
+use tterm_macros::fonts;
 
 use crate::app::App;
+
+fonts![
+    IosevkaFixed("IosevkaFixed-34.6.3" => "IosevkaFixed" @ {
+        Monospace
+    }): {
+        Normal,
+    }
+];
 
 fn main() -> Result<()> {
     init_rootcause()?;
@@ -16,6 +25,7 @@ fn main() -> Result<()> {
         .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
+        .font(IOSEVKA_FIXED_NORMAL_BYTES)
         .run()?;
 
     Ok(())

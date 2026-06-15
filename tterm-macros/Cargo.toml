@@ -1,0 +1,17 @@
+[package]
+name = "tterm-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+darling.workspace = true
+
+convert_case.workspace = true
+
+quote.workspace = true

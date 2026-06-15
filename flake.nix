@@ -29,7 +29,11 @@
       }: let
         crateOutputs = config.nci.outputs.tterm;
       in {
-        devShells.default = crateOutputs.devShell;
+        devShells.default = crateOutputs.devShell.overrideAttrs (old: {
+          packages = with pkgs; [
+            cargo-expand
+          ];
+        });
         packages.default = crateOutputs.packages.release;
       };
     };
