@@ -1,0 +1,30 @@
+[package]
+name = "tterm"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+iced = { version = "0.14.0", features = ["advanced", "tokio"] }
+iced_aw = { version = "0.14", default-features = false, features = ["spinner"] }
+iced_fonts = { version = "0.3.0", features = ["lucide"] }
+iced_term = "0.8.0"
+
+directories = "6.0"
+
+tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "fs"] }
+
+uuid = { version = "1.23", features = ["v7"] }
+
+bon = "3.9"
+derive_more = { version = "2.1", features = ["debug", "display", "from"] }
+smart-default = "0.7"
+
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.1.2"
+
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+rootcause = "0.13.0"
+rootcause-backtrace = "0.13.0"
