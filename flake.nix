@@ -9,11 +9,18 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
+
+    iced-comet = {
+      # 0.14.0 tag
+      url = "github:iced-rs/comet?rev=bb2a21dc9475b44b90bfebea57ac539502d2535b";
+      flake = false;
+    };
   };
 
   outputs = inputs @ {
     parts,
     nci,
+    iced-comet,
     ...
   }:
     parts.lib.mkFlake {inherit inputs;} {
@@ -27,14 +34,27 @@
         config,
         ...
       }: let
-        crateOutputs = config.nci.outputs.tterm;
+        outputs = config.nci.outputs;
+        icedCometOutputs = outputs.iced_comet;
+        ttermOutputs = outputs.tterm;
       in {
-        devShells.default = crateOutputs.devShell.overrideAttrs (old: {
+        nci = {
+          projects.comet = {
+            path = iced-comet;
+            export = true;
+          };
+
+          crates.iced_comet = {};
+        };
+
+        devShells.default = ttermOutputs.devShell.overrideAttrs (old: {
           packages = with pkgs; [
             cargo-expand
+
+            icedCometOutputs.packages.release
           ];
         });
-        packages.default = crateOutputs.packages.release;
+        packages.default = ttermOutputs.packages.release;
       };
     };
 }

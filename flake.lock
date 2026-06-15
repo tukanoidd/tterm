@@ -56,6 +56,23 @@
         "type": "github"
       }
     },
+    "iced-comet": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1771333336,
+        "narHash": "sha256-4p5y8NdI1r1mX4gCGn3Ee8+/41zTv4n1CPlKV0iUcOw=",
+        "owner": "iced-rs",
+        "repo": "comet",
+        "rev": "bb2a21dc9475b44b90bfebea57ac539502d2535b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "iced-rs",
+        "repo": "comet",
+        "rev": "bb2a21dc9475b44b90bfebea57ac539502d2535b",
+        "type": "github"
+      }
+    },
     "mk-naked-shell": {
       "flake": false,
       "locked": {
@@ -203,6 +220,7 @@
     },
     "root": {
       "inputs": {
+        "iced-comet": "iced-comet",
         "nci": "nci",
         "nixpkgs": "nixpkgs",
         "parts": "parts_2"

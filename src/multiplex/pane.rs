@@ -1,10 +1,15 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use bon::bon;
 use derive_more::{Debug, From};
 use iced_term::{Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
+
+static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
@@ -24,8 +29,9 @@ pub struct PaneState {
 impl PaneState {
     #[builder]
     pub fn new(id: Uuid, terminal_config: TerminalConfig) -> Result<Self> {
-        let (id1, id2) = id.as_u64_pair();
-        let term_id = id1.wrapping_add(id2);
+        let term_id = TERM_ID.load(Ordering::SeqCst);
+
+        TERM_ID.store(term_id + 1, Ordering::SeqCst);
 
         let TerminalConfig { font, theme } = terminal_config;
 
@@ -91,8 +97,6 @@ impl PaneState {
     }
 
     pub fn focus(&self) -> AppTask {
-        tracing::debug!("Focus on pane {}", self.id);
-
         TerminalView::focus(self.terminal.widget_id().clone())
     }
 }

@@ -14,10 +14,7 @@ use uuid::Uuid;
 use crate::{
     app::components::tab_bar::TabBar,
     config::Config,
-    multiplex::{
-        pane::{IdPaneMessage, PaneState},
-        tab::Tab,
-    },
+    multiplex::{pane::IdPaneMessage, tab::Tab},
 };
 
 pub type AppTheme = iced::Theme;
@@ -108,13 +105,7 @@ impl App {
             }
 
             AppMsg::NewTab => {
-                let AppState::Main {
-                    config,
-
-                    tabs,
-                    current_tab,
-                } = &mut self.state
-                else {
+                let AppState::Main { config, tabs, .. } = &mut self.state else {
                     tracing::warn!("Not in main state...");
                     return AppTask::none();
                 };
@@ -133,9 +124,8 @@ impl App {
                 };
 
                 tabs.push(tab);
-                *current_tab = tabs.len() - 1;
 
-                return task;
+                return AppTask::batch([AppTask::done(AppMsg::SelectTab(tabs.len() - 1)), task]);
             }
             AppMsg::CloseTab(id) => {
                 let AppState::Main {
@@ -150,19 +140,17 @@ impl App {
                     .iter()
                     .enumerate()
                     .find_map(|(ind, tab)| (tab.id == id).then_some(ind))
-                    .inspect(|ind| tracing::debug!("Closing tab {ind}"))
                 {
                     tabs.remove(tab);
 
                     *current_tab = tab.saturating_sub(1);
 
                     if tabs.is_empty() {
-                        tracing::debug!("No more tabs, closing...");
                         return iced::exit();
                     }
                 }
             }
-            AppMsg::SelectTab(new_selected_tab) => {
+            AppMsg::SelectTab(index) => {
                 let AppState::Main {
                     tabs, current_tab, ..
                 } = &mut self.state
@@ -171,12 +159,17 @@ impl App {
                     return AppTask::none();
                 };
 
-                *current_tab = new_selected_tab.clamp(0, tabs.len().saturating_sub(1));
+                let index = index.clamp(0, tabs.len().saturating_sub(1));
+
+                if *current_tab == index {
+                    return AppTask::none();
+                }
+
+                *current_tab = index;
 
                 if !tabs.is_empty()
                     && let Some(pane) = tabs[*current_tab].pane(tabs[*current_tab].focused_pane)
                 {
-                    tracing::debug!("Focus pane {}", pane.id);
                     return pane.focus();
                 }
             }
@@ -186,10 +179,18 @@ impl App {
                     return AppTask::none();
                 };
 
-                if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == id)
-                    && let pane_grid::DragEvent::Dropped { pane, target } = event
-                {
-                    tab.panes.drop(pane, target)
+                if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == id) {
+                    match event {
+                        pane_grid::DragEvent::Picked { pane } => {
+                            if let Some(p) = tab.panes.get(pane) {
+                                return p.focus();
+                            }
+                        }
+                        pane_grid::DragEvent::Dropped { pane, target } => {
+                            tab.panes.drop(pane, target)
+                        }
+                        pane_grid::DragEvent::Canceled { .. } => {}
+                    }
                 }
             }
             AppMsg::TabPaneResized {
@@ -270,6 +271,7 @@ pub enum AppMsg {
     LoadConfig,
     LoadedConfig(Box<Config>),
 
+    #[from(skip)]
     NewTab,
     #[from(skip)]
     CloseTab(Uuid),

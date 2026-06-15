@@ -4,20 +4,25 @@
     config,
     ...
   }: {
-    nci.projects.tterm.path = ./.;
-    nci.crates = {
-      tterm = {
-        runtimeLibs = with pkgs; [
-          vulkan-loader
-          libGL
-
-          wayland
-          libx11
-
-          libxkbcommon
-        ];
+    nci = {
+      projects.tterm = {
+        path = ./.;
+        export = true;
       };
-      tterm-macros = {};
+      crates = {
+        tterm = {
+          runtimeLibs = with pkgs; [
+            vulkan-loader
+            libGL
+
+            wayland
+            libx11
+
+            libxkbcommon
+          ];
+        };
+        tterm-macros = {};
+      };
     };
   };
 }

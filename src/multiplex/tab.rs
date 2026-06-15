@@ -1,5 +1,5 @@
 use bon::bon;
-use iced::widget::pane_grid;
+use iced::widget::{pane_grid, responsive};
 use rootcause::Result;
 use uuid::Uuid;
 
@@ -16,8 +16,7 @@ pub struct Tab {
 
     pub panes: pane_grid::State<PaneState>,
     pub focused_pane: Uuid,
-    root_pane: pane_grid::Pane,
-    panes_created: usize,
+    _root_pane: pane_grid::Pane,
 }
 
 #[bon]
@@ -37,9 +36,8 @@ impl Tab {
             id: Uuid::now_v7(),
             name,
             panes,
-            root_pane,
             focused_pane: root_pane_id,
-            panes_created: 1,
+            _root_pane: root_pane,
         };
 
         Ok((tab, task))
@@ -47,7 +45,12 @@ impl Tab {
 
     pub fn view(&self) -> AppElement<'_> {
         pane_grid(&self.panes, |_pane, state, _| {
-            pane_grid::Content::new(state.view())
+            pane_grid::Content::new(responsive(|_| state.view())).style(
+                match self.focused_pane == state.id {
+                    true => style::pane_focused,
+                    false => style::pane_active,
+                },
+            )
         })
         .into()
     }
@@ -100,8 +103,6 @@ impl Tab {
             return AppTask::done(crate::app::AppMsg::CloseTab(self.id));
         }
 
-        tracing::debug!("Closing Pane: {id}");
-
         match self.panes.close(*grid_id) {
             Some((_, neighbor)) => self
                 .panes
@@ -109,6 +110,39 @@ impl Tab {
                 .map(|s| s.focus())
                 .unwrap_or_else(AppTask::none),
             None => AppTask::none(),
+        }
+    }
+}
+
+mod style {
+    use iced::widget::container;
+    use iced::{Border, Theme};
+
+    pub fn pane_active(theme: &Theme) -> container::Style {
+        let palette = theme.extended_palette();
+
+        container::Style {
+            background: Some(palette.background.weak.color.into()),
+            border: Border {
+                width: 2.0,
+                color: palette.background.strong.color,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn pane_focused(theme: &Theme) -> container::Style {
+        let palette = theme.extended_palette();
+
+        container::Style {
+            background: Some(palette.background.weak.color.into()),
+            border: Border {
+                width: 2.0,
+                color: palette.background.strong.color,
+                ..Default::default()
+            },
+            ..Default::default()
         }
     }
 }
