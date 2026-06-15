@@ -2,6 +2,7 @@ pub mod app;
 pub mod config;
 pub mod multiplex;
 
+use iced_fonts::LUCIDE_FONT_BYTES;
 use rootcause::{Result, hooks::Hooks};
 use rootcause_backtrace::BacktraceCollector;
 use tracing_subscriber::prelude::*;
@@ -25,6 +26,7 @@ fn main() -> Result<()> {
         .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
+        .font(LUCIDE_FONT_BYTES)
         .font(IOSEVKA_FIXED_NORMAL_BYTES)
         .run()?;
 
@@ -40,9 +42,12 @@ fn init_rootcause() -> Result<()> {
 }
 
 fn init_tracing() -> Result<()> {
-    let level = match cfg!(debug_assertions) {
-        true => "debug",
-        false => "info",
+    let level = match cfg!(feature = "trace") {
+        true => "trace",
+        false => match cfg!(debug_assertions) {
+            true => "debug",
+            false => "info",
+        },
     };
 
     const EXTERNAL_LEVELS: &[(&str, &[&str])] = &[
@@ -56,6 +61,11 @@ fn init_tracing() -> Result<()> {
                 "cosmic_text",
                 "iced_wgpu",
                 "iced_winit",
+                "iced_graphics",
+                "alacritty_terminal",
+                "vte",
+                "calloop",
+                "zbus",
             ],
         ),
     ];
@@ -74,7 +84,7 @@ fn init_tracing() -> Result<()> {
         )))
         .try_init()?;
 
-    tracing::debug!("Tracing initialized!");
+    tracing::debug!("Tracing initialized! [{level}]");
 
     Ok(())
 }

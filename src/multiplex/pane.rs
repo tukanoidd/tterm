@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Pane {
+pub struct PaneState {
     pub id: Uuid,
     pub term_id: u64,
 
@@ -21,7 +21,7 @@ pub struct Pane {
 }
 
 #[bon]
-impl Pane {
+impl PaneState {
     #[builder]
     pub fn new(id: Uuid, terminal_config: TerminalConfig) -> Result<Self> {
         let (id1, id2) = id.as_u64_pair();
@@ -72,7 +72,7 @@ impl Pane {
                     .handle(iced_term::Command::ProxyToBackend(command));
 
                 if action == iced_term::actions::Action::Shutdown {
-                    // TODO: close
+                    return AppTask::done(AppMsg::TabPaneClose { pane: self.id });
                 }
             }
         }
@@ -91,6 +91,8 @@ impl Pane {
     }
 
     pub fn focus(&self) -> AppTask {
+        tracing::debug!("Focus on pane {}", self.id);
+
         TerminalView::focus(self.terminal.widget_id().clone())
     }
 }

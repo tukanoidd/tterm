@@ -47,6 +47,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+trace = []
+
 [dependencies]
 tterm-macros.path = "tterm-macros"
 

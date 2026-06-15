@@ -73,8 +73,6 @@ impl From<TerminalFontConfig> for FontSettings {
             use_embedded_font,
         }: TerminalFontConfig,
     ) -> Self {
-        tracing::debug!("{size} {scale_factor} {font_type:?} {use_embedded_font:?}");
-
         FontSettings {
             size,
             scale_factor,
