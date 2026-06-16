@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     app::{AppElement, AppSubscription, AppTask},
-    config::TerminalConfig,
+    config::terminal::TerminalConfig,
     multiplex::pane::PaneState,
 };
 

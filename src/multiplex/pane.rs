@@ -13,7 +13,7 @@ static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
-    config::TerminalConfig,
+    config::terminal::TerminalConfig,
 };
 
 #[derive(Debug)]

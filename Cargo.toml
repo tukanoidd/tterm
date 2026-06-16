@@ -9,32 +9,34 @@ license = "MIT"
 authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 
 [workspace.dependencies]
-iced = "0.14.0"
+iced = "0.14"
 iced_aw = { version = "0.14", default-features = false }
-iced_fonts = "0.3.0"
-# iced_term = "0.8.0"
+iced_fonts = "0.3"
+# iced_term = "0.8"
 iced_term.git = "https://github.com/Harzu/iced_term"
 
 directories = "6.0"
 
-tokio = "1.52.3"
+tokio = "1.52"
 
 uuid = "1.23"
 
 convert_case = "0.11"
+
+chumsky = "0.13"
 
 bon = "3.9"
 derive_more = "2.1"
 smart-default = "0.7"
 
 serde = "1.0"
-toml = "1.1.2"
+toml = "1.1"
 
-tracing = "0.1.44"
-tracing-subscriber = "0.3.23"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
-rootcause = "0.13.0"
-rootcause-backtrace = "0.13.0"
+rootcause = "0.13"
+rootcause-backtrace = "0.13"
 
 # Macros
 syn = "2.0"
@@ -66,6 +68,8 @@ directories.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
 
 uuid = { workspace = true, features = ["v7"] }
+
+chumsky = { workspace = true, features = ["nightly"] }
 
 bon.workspace = true
 derive_more = { workspace = true, features = ["debug", "display", "from"] }
