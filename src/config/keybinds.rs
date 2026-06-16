@@ -3,12 +3,39 @@ use std::collections::HashMap;
 use chumsky::prelude::*;
 use derive_more::Display;
 use serde::{Deserialize, Serialize, de::Visitor};
-use smart_default::SmartDefault;
 
-#[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeybindsConfig {
     actions: HashMap<KeyBind, KeyBindAction>,
+}
+
+macro_rules! default_keybinds {
+    (@actions: [
+        $($(@[$($mod:ident)+]+)? $key:expr => $action:ident),+
+        $(,)?
+    ]) => {
+        impl Default for KeybindsConfig {
+            fn default() -> Self {
+                Self {
+                    actions: HashMap::from_iter([$(
+                        (
+                            KeyBind::new($key)
+                                $(.with_modifiers([$(Modifier::$mod),+]))?,
+                            KeyBindAction::$action
+                        )
+                    ),+])
+                }
+            }
+        }
+    };
+}
+
+default_keybinds! {
+    @actions: [
+        @[Alt] + "T" => NewTab,
+        @[Ctrl] + "W" => CloseTab,
+    ]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +72,24 @@ pub enum KeyBindAction {
 pub struct KeyBind {
     pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,
+}
+
+impl KeyBind {
+    pub fn new(key: impl Into<Key>) -> Self {
+        Self {
+            key: key.into(),
+            modifiers: None,
+        }
+    }
+
+    pub fn with_modifiers(self, mods: impl IntoIterator<Item = Modifier>) -> Self {
+        let Self { key, .. } = self;
+
+        Self {
+            key,
+            modifiers: Some(mods.into_iter().collect()),
+        }
+    }
 }
 
 impl Serialize for KeyBind {
@@ -120,6 +165,21 @@ impl Key {
             .at_least(1)
             .to_slice()
             .map(|s: &str| Self::Character(s.into())))
+    }
+}
+
+impl From<NamedKey> for Key {
+    fn from(value: NamedKey) -> Self {
+        Self::Named(value)
+    }
+}
+
+impl<S> From<S> for Key
+where
+    S: Into<String>,
+{
+    fn from(value: S) -> Self {
+        Self::Character(value.into())
     }
 }
 
