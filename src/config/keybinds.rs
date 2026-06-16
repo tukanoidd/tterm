@@ -7,12 +7,16 @@ use serde::{Deserialize, Serialize, de::Visitor};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeybindsConfig {
-    actions: HashMap<KeyBind, KeyBindAction>,
+    actions: HashMap<KeyBind, TTermAction>,
 }
 
 macro_rules! default_keybinds {
     (@actions: [
-        $($(@[$($mod:ident)+]+)? $key:expr => $action:ident),+
+        $($(@[$($mod:ident)+]+)? $(@$key_ident:ident)? $([$key_expr:expr])? =>
+            $action:ident
+            $(($($tuple_field:expr),+))?
+            $({$($struct_field:ident: $struct_field_value:expr),+})?
+        ),+
         $(,)?
     ]) => {
         impl Default for KeybindsConfig {
@@ -20,32 +24,55 @@ macro_rules! default_keybinds {
                 Self {
                     actions: HashMap::from_iter([$(
                         (
-                            KeyBind::new($key)
+                            KeyBind::new(default_keybinds!(@key $(@$key_ident)? $([$key_expr])?))
                                 $(.with_modifiers([$(Modifier::$mod),+]))?,
-                            KeyBindAction::$action
+                            TTermAction::$action
+                                $(($($tuple_field),+))?
+                                $({$($struct_field: $struct_field_value),+})?
                         )
                     ),+])
                 }
             }
         }
     };
+
+    (@key @$name:ident) => { NamedKey::$name };
+    (@key [$char:literal]) => { $char };
 }
 
 default_keybinds! {
     @actions: [
-        @[Alt] + "T" => NewTab,
-        @[Ctrl] + "W" => CloseTab,
+        @[Ctrl Shift] + ["T"] => NewTab,
+        @[Ctrl Shift] + ["W"] => CloseTab,
+        @[Ctrl Shift] + ["1"] => SelectTab(0),
+        @[Ctrl Shift] + ["2"] => SelectTab(1),
+        @[Ctrl Shift] + ["3"] => SelectTab(2),
+        @[Ctrl Shift] + ["4"] => SelectTab(3),
+        @[Ctrl Shift] + ["5"] => SelectTab(4),
+        @[Ctrl Shift] + ["6"] => SelectTab(5),
+        @[Ctrl Shift] + ["7"] => SelectTab(6),
+        @[Ctrl Shift] + ["8"] => SelectTab(7),
+        @[Ctrl Shift] + ["9"] => SelectTab(8),
+
+        @[Alt] + ["V"] => SplitPaneVertical,
+        @[Alt] + ["H"] => SplitPaneVertical,
+        @[Alt] + ["W"] => CloseFocusedPane,
+
+        @[Alt] + @ArrowLeft => FocusLeft,
+        @[Alt] + @ArrowRight => FocusRight,
+        @[Alt] + @ArrowUp => FocusUp,
+        @[Alt] + @ArrowDown => FocusDown,
     ]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum KeyBindAction {
+pub enum TTermAction {
     NewTab,
     CloseTab,
     SelectTab(usize),
     SplitPaneVertical,
     SplitPaneHorizontal,
-    ClosePane,
+    CloseFocusedPane,
     FocusLeft,
     FocusRight,
     FocusUp,
