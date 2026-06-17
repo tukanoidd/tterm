@@ -366,9 +366,6 @@ impl App {
             }
 
             AppMsg::IcedEvent(event) => {
-                if let iced::Event::Keyboard(ke) = event {
-                    tracing::trace!("...... {ke:?}");
-                }
                 // TODO
             }
         }
@@ -390,65 +387,67 @@ impl App {
                     .map(|(k, a)| (k.clone(), a.clone()))
                     .collect::<Vec<_>>(),
             )
-            .map(|(binds, event)| match event {
-                iced::Event::Keyboard(keyboard_event) => match keyboard_event {
-                    iced::keyboard::Event::KeyReleased {
-                        key,
-                        modified_key,
-                        physical_key,
-                        location,
-                        modifiers,
-                    } => {
-                        tracing::trace!("{key:?}, {modifiers:?}");
+            .map(|(binds, event)| {
+                match event {
+                    iced::Event::Keyboard(keyboard_event) => match keyboard_event {
+                        iced::keyboard::Event::KeyPressed {
+                            key,
+                            modified_key,
+                            physical_key,
+                            location,
+                            modifiers,
+                            text,
+                            repeat,
+                        } => (!repeat)
+                            .then(|| {
+                                binds.into_iter().find_map(
+                                    |(
+                                        KeyBind {
+                                            key: bind_key,
+                                            modifiers: bind_modifiers,
+                                        },
+                                        action,
+                                    )| {
+                                        let iced_key: iced::keyboard::Key = bind_key.into();
+                                        let iced_modifiers = bind_modifiers
+                                            .map(|bmods| {
+                                                bmods.into_iter().fold(
+                                                    Modifiers::empty(),
+                                                    |mods, mod_| match mod_ {
+                                                        Modifier::Ctrl => mods | Modifiers::CTRL,
+                                                        Modifier::Shift => mods | Modifiers::SHIFT,
+                                                        Modifier::Alt => mods | Modifiers::ALT,
+                                                    },
+                                                )
+                                            })
+                                            .unwrap_or(Modifiers::empty());
 
-                        binds
-                            .into_iter()
-                            .find_map(
-                                |(
-                                    KeyBind {
-                                        key: bind_key,
-                                        modifiers: bind_modifiers,
+                                        (iced_key == key && iced_modifiers == modifiers)
+                                            .then_some(AppMsg::Action(action))
                                     },
-                                    action,
-                                )| {
-                                    let iced_key: iced::keyboard::Key = bind_key.into();
-                                    let iced_modifiers = bind_modifiers
-                                        .map(|bmods| {
-                                            bmods.into_iter().fold(
-                                                Modifiers::empty(),
-                                                |mods, mod_| match mod_ {
-                                                    Modifier::Ctrl => mods | Modifiers::CTRL,
-                                                    Modifier::Shift => mods | Modifiers::SHIFT,
-                                                    Modifier::Alt => mods | Modifiers::ALT,
-                                                },
-                                            )
-                                        })
-                                        .unwrap_or(Modifiers::empty());
-
-                                    (iced_key == key && iced_modifiers == modifiers)
-                                        .then_some(AppMsg::Action(action))
-                                },
-                            )
+                                )
+                            })
+                            .flatten()
                             .unwrap_or_else(|| {
-                                tracing::trace!("Skipped {key:?}, {modifiers:?}");
-
                                 AppMsg::IcedEvent(iced::Event::Keyboard(
-                                    iced::keyboard::Event::KeyReleased {
+                                    iced::keyboard::Event::KeyPressed {
                                         key,
                                         modified_key,
                                         physical_key,
                                         location,
                                         modifiers,
+                                        text,
+                                        repeat,
                                     },
                                 ))
-                            })
-                    }
-                    // iced::keyboard::Event::ModifiersChanged(modifiers) => {
-                    //     // TODO: open relevant popups (configurable)
-                    // }
-                    ev => AppMsg::IcedEvent(iced::Event::Keyboard(ev)),
-                },
-                _ => AppMsg::IcedEvent(event),
+                            }),
+                        // iced::keyboard::Event::ModifiersChanged(modifiers) => {
+                        //     // TODO: open relevant popups (configurable)
+                        // }
+                        ev => AppMsg::IcedEvent(iced::Event::Keyboard(ev)),
+                    },
+                    _ => AppMsg::IcedEvent(event),
+                }
             });
         let tab_subscriptions = tabs.iter().map(Tab::subscription);
 

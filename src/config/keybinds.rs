@@ -204,7 +204,7 @@ impl Key {
             .repeated()
             .at_least(1)
             .to_slice()
-            .map(|s: &str| Self::Character(s.into())))
+            .map(|s: &str| Self::Character(s.to_lowercase())))
     }
 }
 
