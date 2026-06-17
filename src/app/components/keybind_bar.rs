@@ -84,7 +84,7 @@ impl<'a> KeyBindBar<'a> {
 
         let tab_panel = panel!(
             ["Tab Actions" | tab_expanded => TabPanelToggle]
-            [NewTab | CloseTab | SelectTab @(_t)]
+            [NewTab | CloseFocusedTab | SelectTab @(_t)]
         );
         let pane_panel = panel!(
             ["Pane Actions" | pane_expanded => PanePanelToggle]

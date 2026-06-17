@@ -5,6 +5,7 @@ use std::{
 
 use bon::bon;
 use derive_more::{Debug, From};
+use iced::widget::pane_grid;
 use iced_term::{Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
@@ -78,9 +79,16 @@ impl PaneState {
                     .handle(iced_term::Command::ProxyToBackend(command));
 
                 if action == iced_term::actions::Action::Shutdown {
-                    return AppTask::done(AppMsg::TabPaneClose { pane: self.id });
+                    return AppTask::done(
+                        IdPaneMessage {
+                            id: self.id,
+                            msg: PaneMessage::Close,
+                        }
+                        .into(),
+                    );
                 }
             }
+            _ => unreachable!(),
         }
 
         AppTask::none()
@@ -109,5 +117,9 @@ pub struct IdPaneMessage {
 
 #[derive(Debug, Clone, From)]
 pub enum PaneMessage {
+    Resize(pane_grid::ResizeEvent),
+    Dragged(pane_grid::DragEvent),
+    Close,
+
     TerminalMsg(iced_term::Event),
 }

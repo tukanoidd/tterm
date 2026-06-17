@@ -43,7 +43,7 @@ macro_rules! default_keybinds {
 default_keybinds! {
     @actions: [
         @[Ctrl Shift] + ["T"] => NewTab,
-        @[Ctrl Shift] + ["W"] => CloseTab,
+        @[Ctrl Shift] + ["W"] => CloseFocusedTab,
         @[Ctrl Shift] + ["1"] => SelectTab(0),
         @[Ctrl Shift] + ["2"] => SelectTab(1),
         @[Ctrl Shift] + ["3"] => SelectTab(2),
@@ -65,13 +65,13 @@ default_keybinds! {
     ]
 }
 
-#[derive(Debug, Display, Clone, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Hash, Serialize, Deserialize)]
 pub enum TTermAction {
     // Tab Actions
     #[display("New Tab")]
     NewTab,
     #[display("Close Tab")]
-    CloseTab,
+    CloseFocusedTab,
     #[display("Select Tab {_0}")]
     SelectTab(usize),
     // Pane Actions
@@ -205,6 +205,15 @@ impl Key {
             .at_least(1)
             .to_slice()
             .map(|s: &str| Self::Character(s.into())))
+    }
+}
+
+impl From<Key> for iced::keyboard::Key {
+    fn from(key: Key) -> iced::keyboard::Key {
+        match key {
+            Key::Named(named) => iced::keyboard::Key::Named(named.into()),
+            Key::Character(char) => iced::keyboard::Key::Character((&char).into()),
+        }
     }
 }
 

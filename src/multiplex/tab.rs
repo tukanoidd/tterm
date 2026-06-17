@@ -4,7 +4,7 @@ use rootcause::Result;
 use uuid::Uuid;
 
 use crate::{
-    app::{AppElement, AppSubscription, AppTask},
+    app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::terminal::TerminalConfig,
     multiplex::pane::PaneState,
 };
@@ -28,7 +28,7 @@ impl Tab {
             .id(root_pane_id)
             .terminal_config(terminal_config)
             .build()?;
-        let task = pane_state.focus();
+        let task = AppTask::done(AppMsg::FocusPane(root_pane_id));
 
         let (panes, root_pane) = pane_grid::State::new(pane_state);
 
@@ -107,7 +107,7 @@ impl Tab {
             Some((_, neighbor)) => self
                 .panes
                 .get(neighbor)
-                .map(|s| s.focus())
+                .map(|s| AppTask::done(AppMsg::FocusPane(s.id)))
                 .unwrap_or_else(AppTask::none),
             None => AppTask::none(),
         }
