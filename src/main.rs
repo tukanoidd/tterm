@@ -10,25 +10,20 @@ use tterm_macros::fonts;
 
 use crate::app::App;
 
-fonts![
-    IosevkaFixed("IosevkaFixed-34.6.3" => "IosevkaFixed" @ {
-        Monospace
-    }): {
-        Normal,
-    }
-];
+fonts!("assets/fonts/");
 
 fn main() -> Result<()> {
     init_rootcause()?;
     init_tracing()?;
 
-    iced::application(App::boot, App::update, App::view)
+    let app = iced::application(App::boot, App::update, App::view)
         .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
-        .font(LUCIDE_FONT_BYTES)
-        .font(IOSEVKA_FIXED_NORMAL_BYTES)
-        .run()?;
+        .font(LUCIDE_FONT_BYTES);
+    let app = fonts::load(app);
+
+    app.run()?;
 
     Ok(())
 }

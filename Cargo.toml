@@ -23,7 +23,7 @@ uuid = "1.23"
 
 convert_case = "0.11"
 
-chumsky = "0.13"
+chumsky = { version = "0.13", features = ["nightly"] }
 
 bon = "3.9"
 derive_more = "2.1"
@@ -39,6 +39,7 @@ rootcause = "0.13"
 rootcause-backtrace = "0.13"
 
 # Macros
+proc-macro2 = "1.0"
 syn = "2.0"
 darling = "0.23"
 quote = "1.0"
@@ -69,7 +70,7 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
 
 uuid = { workspace = true, features = ["v7"] }
 
-chumsky = { workspace = true, features = ["nightly"] }
+chumsky.workspace = true
 
 bon.workspace = true
 derive_more = { workspace = true, features = ["debug", "display", "from"] }

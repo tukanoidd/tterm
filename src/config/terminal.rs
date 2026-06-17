@@ -3,7 +3,7 @@ use iced_term::settings::{FontSettings, ThemeSettings};
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 
-use crate::{EmbeddedFont, IOSEVKA_FIXED_NORMAL_FONT};
+use crate::fonts::EmbeddedFont;
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -38,9 +38,7 @@ impl From<TerminalFontConfig> for FontSettings {
             scale_factor,
             font_type: font_type
                 .map(Into::into)
-                .unwrap_or_else(|| match use_embedded_font {
-                    EmbeddedFont::IosevkaFixed => IOSEVKA_FIXED_NORMAL_FONT,
-                }),
+                .unwrap_or_else(|| use_embedded_font.to_font()),
         }
     }
 }
