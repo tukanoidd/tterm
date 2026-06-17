@@ -20,8 +20,8 @@ directories = "6.0"
 tokio = "1.52"
 
 uuid = "1.23"
-
 convert_case = "0.11"
+itertools = "0.15"
 
 chumsky = { version = "0.13", features = ["nightly"] }
 
@@ -60,7 +60,7 @@ comet = ["trace", "iced/debug", "iced/hot", "iced/time-travel"]
 tterm-macros.path = "tterm-macros"
 
 iced = { workspace = true, features = ["advanced", "tokio"] }
-iced_aw = { workspace = true, features = ["spinner", "badge"] }
+iced_aw = { workspace = true, features = ["spinner", "badge", "drop_down"] }
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced_term.workspace = true
 
@@ -69,6 +69,7 @@ directories.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
 
 uuid = { workspace = true, features = ["v7"] }
+itertools.workspace = true
 
 chumsky.workspace = true
 

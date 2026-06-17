@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize, de::Visitor};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct KeybindsConfig {
-    actions: HashMap<KeyBind, TTermAction>,
+pub struct KeyBindsConfig {
+    pub actions: HashMap<KeyBind, TTermAction>,
 }
 
 macro_rules! default_keybinds {
@@ -19,7 +19,7 @@ macro_rules! default_keybinds {
         ),+
         $(,)?
     ]) => {
-        impl Default for KeybindsConfig {
+        impl Default for KeyBindsConfig {
             fn default() -> Self {
                 Self {
                     actions: HashMap::from_iter([$(
@@ -65,17 +65,30 @@ default_keybinds! {
     ]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Serialize, Deserialize)]
 pub enum TTermAction {
+    // Tab Actions
+    #[display("New Tab")]
     NewTab,
+    #[display("Close Tab")]
     CloseTab,
+    #[display("Select Tab {_0}")]
     SelectTab(usize),
+    // Pane Actions
+    #[display("Split Pane Vertically")]
     SplitPaneVertical,
+    #[display("Split Pane Horizontally")]
     SplitPaneHorizontal,
+    #[display("Close Focused Pane")]
     CloseFocusedPane,
+    // General Actions
+    #[display("Focus Left")]
     FocusLeft,
+    #[display("Focus Right")]
     FocusRight,
+    #[display("Focus Up")]
     FocusUp,
+    #[display("Focus Down")]
     FocusDown,
 }
 

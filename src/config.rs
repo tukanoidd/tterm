@@ -7,13 +7,13 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
 
-use crate::config::{keybinds::KeybindsConfig, terminal::TerminalConfig};
+use crate::config::{keybinds::KeyBindsConfig, terminal::TerminalConfig};
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub terminal: TerminalConfig,
-    pub keybinds: KeybindsConfig,
+    pub keybinds: KeyBindsConfig,
 }
 
 impl Config {

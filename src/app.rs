@@ -12,8 +12,8 @@ use iced_aw::Spinner;
 use uuid::Uuid;
 
 use crate::{
-    app::components::tab_bar::TabBar,
-    config::Config,
+    app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
+    config::{Config, keybinds::TTermAction},
     multiplex::{pane::IdPaneMessage, tab::Tab},
 };
 
@@ -61,7 +61,14 @@ impl App {
             .into(),
 
             AppState::Main {
-                tabs, current_tab, ..
+                tabs,
+                current_tab,
+
+                config,
+
+                tab_expanded,
+                pane_expanded,
+                general_expanded,
             } => {
                 let tab_widget = match tabs.get(*current_tab) {
                     None => center(Spinner::new().width(20).height(20)).into(),
@@ -71,7 +78,15 @@ impl App {
                 column![
                     TabBar::new(tabs, *current_tab).view(),
                     rule::horizontal(2),
-                    tab_widget
+                    tab_widget,
+                    rule::horizontal(2),
+                    KeyBindBar::new(
+                        &config.keybinds,
+                        *tab_expanded,
+                        *pane_expanded,
+                        *general_expanded
+                    )
+                    .view()
                 ]
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -99,6 +114,10 @@ impl App {
 
                     tabs: Vec::new(),
                     current_tab: 0,
+
+                    tab_expanded: false,
+                    pane_expanded: false,
+                    general_expanded: false,
                 };
 
                 return AppTask::done(AppMsg::NewTab);
@@ -230,6 +249,39 @@ impl App {
 
                 return pane.update(msg);
             }
+
+            AppMsg::TabPanelToggle => {
+                let AppState::Main { tab_expanded, .. } = &mut self.state else {
+                    return AppTask::none();
+                };
+
+                *tab_expanded = !*tab_expanded;
+            }
+            AppMsg::PanePanelToggle => {
+                let AppState::Main { pane_expanded, .. } = &mut self.state else {
+                    return AppTask::none();
+                };
+
+                *pane_expanded = !*pane_expanded;
+            }
+            AppMsg::GeneralPanelToggle => {
+                let AppState::Main {
+                    general_expanded, ..
+                } = &mut self.state
+                else {
+                    return AppTask::none();
+                };
+
+                *general_expanded = !*general_expanded;
+            }
+
+            AppMsg::Action(tterm_action) => {
+                // TODO
+            }
+
+            AppMsg::IcedEvent(event) => {
+                // TODO
+            }
         }
 
         AppTask::none()
@@ -257,6 +309,10 @@ pub enum AppState {
 
         tabs: Vec<Tab>,
         current_tab: usize,
+
+        tab_expanded: bool,
+        pane_expanded: bool,
+        general_expanded: bool,
     },
 }
 
@@ -293,6 +349,14 @@ pub enum AppMsg {
     },
 
     Pane(IdPaneMessage),
+
+    TabPanelToggle,
+    PanePanelToggle,
+    GeneralPanelToggle,
+
+    Action(TTermAction),
+
+    IcedEvent(iced::Event),
 }
 
 impl AppMsg {
