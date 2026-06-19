@@ -29,7 +29,7 @@ pub struct PaneState {
 #[bon]
 impl PaneState {
     #[builder]
-    pub fn new(id: Uuid, terminal_config: TerminalConfig) -> Result<Self> {
+    pub fn new(id: Uuid, terminal_config: &TerminalConfig) -> Result<Self> {
         let term_id = TERM_ID.load(Ordering::SeqCst);
 
         TERM_ID.store(term_id + 1, Ordering::SeqCst);
@@ -43,8 +43,8 @@ impl PaneState {
         let terminal = Terminal::new(
             term_id,
             iced_term::settings::Settings {
-                font: font.into(),
-                theme: theme.into(),
+                font: font.clone().into(),
+                theme: theme.clone().into(),
                 backend: iced_term::settings::BackendSettings {
                     // TODO: configurable program
                     program: "nu".into(),

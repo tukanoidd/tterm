@@ -1,8 +1,8 @@
 pub mod components;
 
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
-use derive_more::From;
+use derive_more::{Display, From};
 use iced::{
     Length,
     alignment::Horizontal,
@@ -14,6 +14,7 @@ use iced::{
     },
 };
 use iced_aw::Spinner;
+use itertools::Itertools;
 use uuid::Uuid;
 
 use crate::{
@@ -77,9 +78,7 @@ impl App {
 
                 config,
 
-                tab_expanded,
-                pane_expanded,
-                general_expanded,
+                panel_expanded,
                 ..
             } => {
                 let tab_widget = match tabs.get(*current_tab) {
@@ -92,13 +91,7 @@ impl App {
                     rule::horizontal(2),
                     tab_widget,
                     rule::horizontal(2),
-                    KeyBindBar::new(
-                        &config.keybinds,
-                        *tab_expanded,
-                        *pane_expanded,
-                        *general_expanded
-                    )
-                    .view()
+                    KeyBindBar::new(&config.keybinds, panel_expanded).view()
                 ]
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -110,6 +103,20 @@ impl App {
     }
 
     pub fn update(&mut self, msg: AppMsg) -> AppTask {
+        macro_rules! get_main_state {
+            ($($param:ident),+) => {{
+                let AppState::Main {
+                    $($param,)+ ..
+                } = &mut self.state
+                else {
+                    tracing::warn!("Not in main state...");
+                    return AppTask::none();
+                };
+
+                ($($param),+)
+            }};
+        }
+
         match msg {
             AppMsg::Error { message, critical } => {
                 tracing::error!("{message}");
@@ -119,6 +126,8 @@ impl App {
                 }
             }
 
+            AppMsg::Multiple(list) => return AppTask::batch(list.into_iter().map(AppTask::done)),
+
             AppMsg::LoadConfig => return Self::load_config(),
             AppMsg::LoadedConfig(config) => {
                 self.state = AppState::Main {
@@ -127,22 +136,14 @@ impl App {
                     tabs: Vec::new(),
                     current_tab: 0,
 
-                    tab_expanded: false,
-                    pane_expanded: false,
-                    general_expanded: false,
+                    panel_expanded: HashMap::new(),
                 };
 
                 return AppTask::done(TTermAction::NewTab.into());
             }
 
             AppMsg::CloseTab(id) => {
-                let AppState::Main {
-                    tabs, current_tab, ..
-                } = &mut self.state
-                else {
-                    tracing::warn!("Not in main state...");
-                    return AppTask::none();
-                };
+                let (tabs, current_tab) = get_main_state![tabs, current_tab];
 
                 let Some(tab) = tabs
                     .iter()
@@ -165,13 +166,7 @@ impl App {
                 );
             }
             AppMsg::FocusPane(id) => {
-                let AppState::Main {
-                    tabs, current_tab, ..
-                } = &mut self.state
-                else {
-                    tracing::warn!("Not in main state...");
-                    return AppTask::none();
-                };
+                let (tabs, current_tab) = get_main_state![tabs, current_tab];
                 let Some(tab) = tabs.get_mut(*current_tab) else {
                     return AppTask::none();
                 };
@@ -180,19 +175,16 @@ impl App {
 
                 return tab
                     .pane(id)
-                    .map(|p| p.focus())
+                    .map(|(_, p)| p.focus())
                     .unwrap_or_else(AppTask::none);
             }
 
             AppMsg::Pane(IdPaneMessage { id, msg }) => {
-                let AppState::Main { tabs, .. } = &mut self.state else {
-                    tracing::warn!("Not in main state...");
-                    return AppTask::none();
-                };
+                let tabs = get_main_state![tabs];
 
                 match msg {
                     PaneMessage::Resize(ResizeEvent { split, ratio }) => {
-                        let Some(tab) = tabs.iter_mut().find(|tab| tab.id == id) else {
+                        let Some(tab) = tabs.iter_mut().find(|tab| tab.pane(id).is_some()) else {
                             return AppTask::none();
                         };
 
@@ -229,68 +221,40 @@ impl App {
                         return tab.close_pane(id);
                     }
                     msg => {
-                        let Some(pane) = tabs.iter_mut().find_map(|tab| tab.pane_mut(id)) else {
+                        let Some((_, pane_state)) =
+                            tabs.iter_mut().find_map(|tab| tab.pane_mut(id))
+                        else {
                             tracing::warn!("Failed to find pane {id}");
                             return AppTask::none();
                         };
 
-                        return pane.update(msg);
+                        return pane_state.update(msg);
                     }
                 }
             }
 
-            AppMsg::TabPanelToggle => {
-                let AppState::Main { tab_expanded, .. } = &mut self.state else {
-                    return AppTask::none();
-                };
+            AppMsg::PanelToggle { ty, force } => {
+                let panel_expanded = get_main_state![panel_expanded];
+                let entry = panel_expanded.entry(ty).or_default();
 
-                *tab_expanded = !*tab_expanded;
-            }
-            AppMsg::PanePanelToggle => {
-                let AppState::Main { pane_expanded, .. } = &mut self.state else {
-                    return AppTask::none();
-                };
-
-                *pane_expanded = !*pane_expanded;
-            }
-            AppMsg::GeneralPanelToggle => {
-                let AppState::Main {
-                    general_expanded, ..
-                } = &mut self.state
-                else {
-                    return AppTask::none();
-                };
-
-                *general_expanded = !*general_expanded;
+                *entry = force.unwrap_or(!*entry);
             }
 
             AppMsg::Action(tterm_action) => {
-                let AppState::Main {
-                    tabs, current_tab, ..
-                } = &self.state
-                else {
-                    return AppTask::none();
-                };
+                let (tabs, current_tab, config) = get_main_state![tabs, current_tab, config];
 
                 match tterm_action {
                     TTermAction::NewTab => {
-                        let AppState::Main { config, tabs, .. } = &mut self.state else {
-                            tracing::warn!("Not in main state...");
-                            return AppTask::none();
-                        };
-
-                        let (tab, task) = match Tab::builder()
-                            .terminal_config(config.terminal.clone())
-                            .build()
-                        {
-                            Ok(tab) => tab,
-                            Err(err) => {
-                                return AppTask::done(AppMsg::Error {
-                                    message: err.to_string(),
-                                    critical: true,
-                                });
-                            }
-                        };
+                        let (tab, task) =
+                            match Tab::builder().terminal_config(&config.terminal).build() {
+                                Ok(tab) => tab,
+                                Err(err) => {
+                                    return AppTask::done(AppMsg::Error {
+                                        message: err.to_string(),
+                                        critical: true,
+                                    });
+                                }
+                            };
 
                         tabs.push(tab);
 
@@ -303,40 +267,32 @@ impl App {
                         return AppTask::done(AppMsg::CloseTab(tabs[*current_tab].id));
                     }
                     TTermAction::SelectTab(index) => {
-                        let AppState::Main {
-                            tabs, current_tab, ..
-                        } = &mut self.state
-                        else {
-                            tracing::warn!("Not in main state...");
-                            return AppTask::none();
-                        };
-
                         let index = index.clamp(0, tabs.len().saturating_sub(1));
 
                         *current_tab = index;
 
                         if !tabs.is_empty()
-                            && let Some(pane) =
+                            && let Some((_, pane_state)) =
                                 tabs[*current_tab].pane(tabs[*current_tab].focused_pane)
                         {
-                            return AppTask::done(AppMsg::FocusPane(pane.id));
+                            return AppTask::done(AppMsg::FocusPane(pane_state.id));
                         }
                     }
 
-                    TTermAction::SplitPaneVertical => {
-                        // TODO
-                    }
-                    TTermAction::SplitPaneHorizontal => {
-                        // TODO
-                    }
-                    TTermAction::CloseFocusedPane => {
-                        let AppState::Main {
-                            tabs, current_tab, ..
-                        } = &self.state
-                        else {
-                            tracing::warn!("Not in main state or no focused pane...");
+                    TTermAction::SplitFocusedPane(direction) => {
+                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
                             return AppTask::none();
                         };
+
+                        return match current_tab.split_focused(direction, &config.terminal) {
+                            Ok(task) => task,
+                            Err(err) => AppTask::done(AppMsg::Error {
+                                message: err.to_string(),
+                                critical: false,
+                            }),
+                        };
+                    }
+                    TTermAction::CloseFocusedPane => {
                         let Some(tab) = tabs.get(*current_tab) else {
                             return AppTask::none();
                         };
@@ -350,22 +306,17 @@ impl App {
                         );
                     }
 
-                    TTermAction::FocusLeft => {
-                        // TODO
-                    }
-                    TTermAction::FocusRight => {
-                        // TODO
-                    }
-                    TTermAction::FocusUp => {
-                        // TODO
-                    }
-                    TTermAction::FocusDown => {
-                        // TODO
+                    TTermAction::Focus(direction) => {
+                        let Some(tab) = tabs.get_mut(*current_tab) else {
+                            return AppTask::none();
+                        };
+
+                        return tab.focus_pane(direction);
                     }
                 }
             }
 
-            AppMsg::IcedEvent(event) => {
+            AppMsg::IcedEvent(_event) => {
                 // TODO
             }
         }
@@ -378,17 +329,17 @@ impl App {
             return AppSubscription::none();
         };
 
-        let keybind_subscription = iced::event::listen()
-            .with(
-                config
-                    .keybinds
-                    .actions
-                    .iter()
-                    .map(|(k, a)| (k.clone(), a.clone()))
-                    .collect::<Vec<_>>(),
-            )
-            .map(|(binds, event)| {
-                match event {
+        let keybind_subscription =
+            iced::event::listen_with(move |event, _, _window_id| Some(event))
+                .with(
+                    config
+                        .keybinds
+                        .actions
+                        .iter()
+                        .map(|(k, a)| (k.clone(), a.clone()))
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(binds, event)| match event {
                     iced::Event::Keyboard(keyboard_event) => match keyboard_event {
                         iced::keyboard::Event::KeyPressed {
                             key,
@@ -398,60 +349,99 @@ impl App {
                             modifiers,
                             text,
                             repeat,
-                        } => (!repeat)
-                            .then(|| {
-                                binds.into_iter().find_map(
-                                    |(
-                                        KeyBind {
-                                            key: bind_key,
-                                            modifiers: bind_modifiers,
+                        } => vec![
+                            (!repeat)
+                                .then(|| {
+                                    binds.into_iter().find_map(
+                                        |(
+                                            KeyBind {
+                                                key: bind_key,
+                                                modifiers: bind_modifiers,
+                                            },
+                                            action,
+                                        )| {
+                                            let iced_key: iced::keyboard::Key = bind_key.into();
+                                            let iced_modifiers = bind_modifiers
+                                                .map(|bmods| {
+                                                    bmods.into_iter().fold(
+                                                        Modifiers::empty(),
+                                                        |mods, mod_| match mod_ {
+                                                            Modifier::Ctrl => {
+                                                                mods | Modifiers::CTRL
+                                                            }
+                                                            Modifier::Shift => {
+                                                                mods | Modifiers::SHIFT
+                                                            }
+                                                            Modifier::Alt => mods | Modifiers::ALT,
+                                                        },
+                                                    )
+                                                })
+                                                .unwrap_or(Modifiers::empty());
+
+                                            (iced_key == key && iced_modifiers == modifiers)
+                                                .then_some(AppMsg::Action(action))
                                         },
-                                        action,
-                                    )| {
-                                        let iced_key: iced::keyboard::Key = bind_key.into();
-                                        let iced_modifiers = bind_modifiers
-                                            .map(|bmods| {
-                                                bmods.into_iter().fold(
-                                                    Modifiers::empty(),
-                                                    |mods, mod_| match mod_ {
-                                                        Modifier::Ctrl => mods | Modifiers::CTRL,
-                                                        Modifier::Shift => mods | Modifiers::SHIFT,
-                                                        Modifier::Alt => mods | Modifiers::ALT,
-                                                    },
-                                                )
-                                            })
-                                            .unwrap_or(Modifiers::empty());
+                                    )
+                                })
+                                .flatten()
+                                .unwrap_or_else(|| {
+                                    AppMsg::IcedEvent(iced::Event::Keyboard(
+                                        iced::keyboard::Event::KeyPressed {
+                                            key,
+                                            modified_key,
+                                            physical_key,
+                                            location,
+                                            modifiers,
+                                            text,
+                                            repeat,
+                                        },
+                                    ))
+                                }),
+                        ],
+                        iced::keyboard::Event::ModifiersChanged(modifiers) => {
+                            let changed_mods = modifiers
+                                .iter()
+                                .filter_map(|m| match m {
+                                    Modifiers::SHIFT => Some(Modifier::Shift),
+                                    Modifiers::CTRL => Some(Modifier::Ctrl),
+                                    Modifiers::ALT => Some(Modifier::Alt),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
 
-                                        (iced_key == key && iced_modifiers == modifiers)
-                                            .then_some(AppMsg::Action(action))
-                                    },
-                                )
-                            })
-                            .flatten()
-                            .unwrap_or_else(|| {
-                                AppMsg::IcedEvent(iced::Event::Keyboard(
-                                    iced::keyboard::Event::KeyPressed {
-                                        key,
-                                        modified_key,
-                                        physical_key,
-                                        location,
-                                        modifiers,
-                                        text,
-                                        repeat,
-                                    },
-                                ))
-                            }),
-                        // iced::keyboard::Event::ModifiersChanged(modifiers) => {
-                        //     // TODO: open relevant popups (configurable)
-                        // }
-                        ev => AppMsg::IcedEvent(iced::Event::Keyboard(ev)),
+                            binds
+                                .into_iter()
+                                .map(|(b, a)| (b, KeyBindPanelType::from(a)))
+                                .unique()
+                                .map(|(b, ty)| {
+                                    let open = b
+                                        .modifiers
+                                        .as_ref()
+                                        .map(|mods| mods.iter().any(|m| changed_mods.contains(m)))
+                                        .unwrap_or_default();
+
+                                    AppMsg::PanelToggle {
+                                        ty,
+                                        force: Some(open),
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        }
+                        ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
                     },
-                    _ => AppMsg::IcedEvent(event),
-                }
-            });
-        let tab_subscriptions = tabs.iter().map(Tab::subscription);
+                    _ => vec![AppMsg::IcedEvent(event)],
+                });
+        let tab_subscriptions = tabs
+            .iter()
+            .map(Tab::subscription)
+            .map(|s| s.map(|m| vec![m]));
 
-        AppSubscription::batch([keybind_subscription].into_iter().chain(tab_subscriptions))
+        AppSubscription::batch(
+            [keybind_subscription]
+                .into_iter()
+                .chain(tab_subscriptions)
+                .map(|s| s.map(Into::into)),
+        )
     }
 
     fn load_config() -> AppTask {
@@ -469,10 +459,33 @@ pub enum AppState {
         tabs: Vec<Tab>,
         current_tab: usize,
 
-        tab_expanded: bool,
-        pane_expanded: bool,
-        general_expanded: bool,
+        panel_expanded: HashMap<KeyBindPanelType, bool>,
     },
+}
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KeyBindPanelType {
+    Tab,
+    Pane,
+    General,
+}
+
+impl KeyBindPanelType {
+    pub fn title(&self) -> String {
+        format!("{self} Panel")
+    }
+}
+
+impl From<TTermAction> for KeyBindPanelType {
+    fn from(value: TTermAction) -> Self {
+        match value {
+            TTermAction::NewTab | TTermAction::CloseFocusedTab | TTermAction::SelectTab(_) => {
+                Self::Tab
+            }
+            TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
+            TTermAction::Focus(_) => Self::General,
+        }
+    }
 }
 
 #[derive(Debug, Clone, From)]
@@ -482,6 +495,8 @@ pub enum AppMsg {
         message: String,
         critical: bool,
     },
+
+    Multiple(Vec<AppMsg>),
 
     LoadConfig,
     LoadedConfig(Box<Config>),
@@ -493,9 +508,11 @@ pub enum AppMsg {
 
     Pane(IdPaneMessage),
 
-    TabPanelToggle,
-    PanePanelToggle,
-    GeneralPanelToggle,
+    #[from(skip)]
+    PanelToggle {
+        ty: KeyBindPanelType,
+        force: Option<bool>,
+    },
 
     Action(TTermAction),
 

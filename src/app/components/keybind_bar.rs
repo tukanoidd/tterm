@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use iced::{
     Padding,
     widget::{button, container, row, table, text},
@@ -6,48 +8,35 @@ use iced_aw::DropDown;
 use itertools::Itertools;
 
 use crate::{
-    app::{AppElement, AppMsg},
+    app::{AppElement, AppMsg, KeyBindPanelType},
     config::keybinds::{KeyBind, KeyBindsConfig, TTermAction},
 };
 
 pub struct KeyBindBar<'a> {
     keybinds_config: &'a KeyBindsConfig,
-    tab_expanded: bool,
-    pane_expanded: bool,
-    general_expanded: bool,
+    keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
 }
 
 impl<'a> KeyBindBar<'a> {
     pub fn new(
         keybinds_config: &'a KeyBindsConfig,
-        tab_expanded: bool,
-        pane_expanded: bool,
-        general_expanded: bool,
+        keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> Self {
         Self {
             keybinds_config,
-            tab_expanded,
-            pane_expanded,
-            general_expanded,
+            keybind_panel_expanded,
         }
     }
 
     pub fn view(self) -> AppElement<'a> {
         let Self {
             keybinds_config,
-            tab_expanded,
-            pane_expanded,
-            general_expanded,
+            keybind_panel_expanded,
         } = self;
 
         macro_rules! panel {
             (
-                [
-                    $str_name:literal
-                    | $expanded:expr
-                    => $toggle:ident
-                ]
-                [
+                $panel_ty:ident: [
                     $(
                         $action:ident
                         $(@($($tp:ident),*))?
@@ -63,10 +52,9 @@ impl<'a> KeyBindBar<'a> {
                 });
 
                 Self::panel(
-                    $str_name,
+                    KeyBindPanelType::$panel_ty,
                     actions,
-                    $expanded,
-                    AppMsg::$toggle,
+                    keybind_panel_expanded
                 )
             }};
 
@@ -83,16 +71,13 @@ impl<'a> KeyBindBar<'a> {
         }
 
         let tab_panel = panel!(
-            ["Tab Actions" | tab_expanded => TabPanelToggle]
-            [NewTab | CloseFocusedTab | SelectTab @(_t)]
+            Tab: [NewTab | CloseFocusedTab | SelectTab @(_t)]
         );
         let pane_panel = panel!(
-            ["Pane Actions" | pane_expanded => PanePanelToggle]
-            [SplitPaneVertical | SplitPaneHorizontal | CloseFocusedPane]
+            Pane: [SplitFocusedPane @(_d) | CloseFocusedPane]
         );
         let general_panel = panel!(
-            ["General Actions" | general_expanded => GeneralPanelToggle]
-            [FocusLeft | FocusRight | FocusUp | FocusDown]
+            General: [Focus @(_d)]
         );
 
         row([tab_panel, pane_panel, general_panel])
@@ -102,10 +87,9 @@ impl<'a> KeyBindBar<'a> {
     }
 
     fn panel(
-        name: &'a str,
+        ty: KeyBindPanelType,
         binds: impl IntoIterator<Item = (&'a KeyBind, &'a TTermAction)>,
-        expanded: bool,
-        on_toggle: AppMsg,
+        keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
         let table = table(
             [
@@ -123,14 +107,17 @@ impl<'a> KeyBindBar<'a> {
         .width(350);
 
         DropDown::new(
-            button(text(name))
+            button(text(ty.title()))
                 .style(button::subtle)
                 .width(350)
-                .on_press(on_toggle.clone()),
+                .on_press(AppMsg::PanelToggle { ty, force: None }),
             container(table).style(container::bordered_box),
-            expanded,
+            keybind_panel_expanded.get(&ty).copied().unwrap_or_default(),
         )
-        .on_dismiss(on_toggle)
+        .on_dismiss(AppMsg::PanelToggle {
+            ty,
+            force: Some(false),
+        })
         .alignment(iced_aw::core::alignment::Alignment::Top)
         .into()
     }

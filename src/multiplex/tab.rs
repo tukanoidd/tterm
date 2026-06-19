@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
-    config::terminal::TerminalConfig,
+    config::{
+        keybinds::{FocusDirection, SplitDirection},
+        terminal::TerminalConfig,
+    },
     multiplex::pane::PaneState,
 };
 
@@ -22,7 +25,7 @@ pub struct Tab {
 #[bon]
 impl Tab {
     #[builder]
-    pub fn new(name: Option<String>, terminal_config: TerminalConfig) -> Result<(Self, AppTask)> {
+    pub fn new(name: Option<String>, terminal_config: &TerminalConfig) -> Result<(Self, AppTask)> {
         let root_pane_id = Uuid::now_v7();
         let pane_state = PaneState::builder()
             .id(root_pane_id)
@@ -64,12 +67,63 @@ impl Tab {
         )
     }
 
-    pub fn pane(&self, id: Uuid) -> Option<&PaneState> {
-        match self
+    pub fn split_focused(
+        &mut self,
+        direction: SplitDirection,
+        terminal_config: &TerminalConfig,
+    ) -> Result<AppTask> {
+        let Some((focused_pane, _)) = self.pane(self.focused_pane) else {
+            return Ok(AppTask::none());
+        };
+
+        let pane_id = Uuid::now_v7();
+        let pane_state = PaneState::builder()
+            .id(pane_id)
+            .terminal_config(terminal_config)
+            .build()?;
+
+        self.panes.split(
+            match direction {
+                SplitDirection::Vertical => pane_grid::Axis::Vertical,
+                SplitDirection::Horizontal => pane_grid::Axis::Horizontal,
+            },
+            *focused_pane,
+            pane_state,
+        );
+
+        Ok(AppTask::done(AppMsg::FocusPane(pane_id)))
+    }
+
+    pub fn focus_pane(&mut self, direction: FocusDirection) -> AppTask {
+        let Some((focused_pane, _)) = self.pane(self.focused_pane) else {
+            return AppTask::none();
+        };
+
+        let Some(new_focus_pane) = self
             .panes
-            .iter()
-            .find_map(|(_, p)| (p.id == id).then_some(p))
-        {
+            .adjacent(
+                *focused_pane,
+                match direction {
+                    FocusDirection::Up => pane_grid::Direction::Up,
+                    FocusDirection::Down => pane_grid::Direction::Down,
+                    FocusDirection::Left => pane_grid::Direction::Left,
+                    FocusDirection::Right => pane_grid::Direction::Right,
+                },
+            )
+            .and_then(|ap| {
+                self.panes
+                    .iter()
+                    .find_map(|(p, s)| (p == &ap).then_some(s.id))
+            })
+        else {
+            return AppTask::none();
+        };
+
+        AppTask::done(AppMsg::FocusPane(new_focus_pane))
+    }
+
+    pub fn pane(&self, id: Uuid) -> Option<(&pane_grid::Pane, &PaneState)> {
+        match self.panes.iter().find(|(_, p)| p.id == id) {
             Some(p) => Some(p),
             None => {
                 tracing::trace!(
@@ -84,10 +138,8 @@ impl Tab {
         }
     }
 
-    pub fn pane_mut(&mut self, id: Uuid) -> Option<&mut PaneState> {
-        self.panes
-            .iter_mut()
-            .find_map(|(_, p)| (p.id == id).then_some(p))
+    pub fn pane_mut(&mut self, id: Uuid) -> Option<(&pane_grid::Pane, &mut PaneState)> {
+        self.panes.iter_mut().find(|(_, p)| p.id == id)
     }
 
     pub fn close_pane(&mut self, id: Uuid) -> AppTask {

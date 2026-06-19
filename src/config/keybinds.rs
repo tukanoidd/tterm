@@ -54,14 +54,14 @@ default_keybinds! {
         @[Ctrl Shift] + ["8"] => SelectTab(7),
         @[Ctrl Shift] + ["9"] => SelectTab(8),
 
-        @[Alt] + ["V"] => SplitPaneVertical,
-        @[Alt] + ["H"] => SplitPaneVertical,
+        @[Alt] + ["V"] => SplitFocusedPane(SplitDirection::Vertical),
+        @[Alt] + ["H"] => SplitFocusedPane(SplitDirection::Horizontal),
         @[Alt] + ["W"] => CloseFocusedPane,
 
-        @[Alt] + @ArrowLeft => FocusLeft,
-        @[Alt] + @ArrowRight => FocusRight,
-        @[Alt] + @ArrowUp => FocusUp,
-        @[Alt] + @ArrowDown => FocusDown,
+        @[Alt] + @ArrowLeft => Focus(FocusDirection::Left),
+        @[Alt] + @ArrowRight => Focus(FocusDirection::Right),
+        @[Alt] + @ArrowUp => Focus(FocusDirection::Up),
+        @[Alt] + @ArrowDown => Focus(FocusDirection::Down),
     ]
 }
 
@@ -75,21 +75,31 @@ pub enum TTermAction {
     #[display("Select Tab {_0}")]
     SelectTab(usize),
     // Pane Actions
-    #[display("Split Pane Vertically")]
-    SplitPaneVertical,
-    #[display("Split Pane Horizontally")]
-    SplitPaneHorizontal,
+    #[display("Split Pane {}", match _0 {
+        SplitDirection::Vertical => "Vertically",
+        SplitDirection::Horizontal => "Horizontally"
+        
+    })]
+    SplitFocusedPane(SplitDirection),
     #[display("Close Focused Pane")]
     CloseFocusedPane,
     // General Actions
-    #[display("Focus Left")]
-    FocusLeft,
-    #[display("Focus Right")]
-    FocusRight,
-    #[display("Focus Up")]
-    FocusUp,
-    #[display("Focus Down")]
-    FocusDown,
+    #[display("Focus {_0}")]
+    Focus(FocusDirection),
+}
+
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SplitDirection {
+    Vertical,
+    Horizontal,
+}
+
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FocusDirection {
+    Up,
+    Down,
+    Left,
+    Right
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]
