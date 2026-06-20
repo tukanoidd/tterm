@@ -226,6 +226,7 @@ impl<'de> Deserialize<'de> for KeyBind {
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
     Named(NamedKey),
+    #[display("{}", _0.to_uppercase())]
     Character(String),
 }
 

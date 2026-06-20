@@ -321,15 +321,16 @@ impl App {
 
         let keybind_subscription =
             iced::event::listen_with(move |event, _, _window_id| Some(event))
-                .with(
+                .with((
                     config
                         .keybinds
                         .actions
                         .iter()
                         .map(|(k, a)| (k.clone(), a.clone()))
                         .collect::<Vec<_>>(),
-                )
-                .map(|(binds, event)| match event {
+                    config.general.reactive_panels,
+                ))
+                .map(|((binds, reactive_panels), event)| match event {
                     iced::Event::Keyboard(keyboard_event) => match keyboard_event {
                         iced::keyboard::Event::KeyPressed {
                             key,
@@ -388,35 +389,43 @@ impl App {
                                     ))
                                 }),
                         ],
-                        iced::keyboard::Event::ModifiersChanged(modifiers) => {
-                            let changed_mods = modifiers
-                                .iter()
-                                .filter_map(|m| match m {
-                                    Modifiers::SHIFT => Some(Modifier::Shift),
-                                    Modifiers::CTRL => Some(Modifier::Ctrl),
-                                    Modifiers::ALT => Some(Modifier::Alt),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
+                        iced::keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels
+                        {
+                            true => {
+                                let changed_mods = modifiers
+                                    .iter()
+                                    .filter_map(|m| match m {
+                                        Modifiers::SHIFT => Some(Modifier::Shift),
+                                        Modifiers::CTRL => Some(Modifier::Ctrl),
+                                        Modifiers::ALT => Some(Modifier::Alt),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>();
 
-                            binds
-                                .into_iter()
-                                .map(|(b, a)| (b, KeyBindPanelType::from(a)))
-                                .unique()
-                                .map(|(b, ty)| {
-                                    let open = b
-                                        .modifiers
-                                        .as_ref()
-                                        .map(|mods| mods.iter().any(|m| changed_mods.contains(m)))
-                                        .unwrap_or_default();
+                                binds
+                                    .into_iter()
+                                    .map(|(b, a)| (b, KeyBindPanelType::from(a)))
+                                    .unique()
+                                    .map(|(b, ty)| {
+                                        let open = b
+                                            .modifiers
+                                            .as_ref()
+                                            .map(|mods| {
+                                                mods.iter().any(|m| changed_mods.contains(m))
+                                            })
+                                            .unwrap_or_default();
 
-                                    AppMsg::PanelToggle {
-                                        ty,
-                                        force: Some(open),
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                        }
+                                        AppMsg::PanelToggle {
+                                            ty,
+                                            force: Some(open),
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
+                            }
+                            false => {
+                                vec![]
+                            }
+                        },
                         ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
                     },
                     _ => vec![AppMsg::IcedEvent(event)],
