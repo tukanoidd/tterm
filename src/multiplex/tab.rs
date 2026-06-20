@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use bon::bon;
 use iced::{
-    Length,
-    widget::{Float, button, center, column, container, pane_grid, responsive, row, space, stack},
+    Length, Padding,
+    widget::{
+        Float, button, center, column, container, pane_grid, responsive, row, scrollable, space,
+        stack,
+    },
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
@@ -228,7 +231,7 @@ impl TabPanesState {
                     Some((_, state)) => state.view(self.focused_pane == state.id),
                     None => center(Spinner::new().width(40).height(40)).into(),
                 };
-                let pane_list = center(
+                let pane_list = center(scrollable(
                     column(
                         self.panes
                             .iter()
@@ -260,8 +263,8 @@ impl TabPanesState {
                             }),
                     )
                     .spacing(10),
-                )
-                .padding(5)
+                ))
+                .padding(Padding::default().right(10).top(75).bottom(75))
                 .width(Length::Shrink);
 
                 stack![pane, row![space().width(Length::Fill), pane_list]]
