@@ -21,7 +21,7 @@ use crate::{
     },
     multiplex::{
         pane::IdPaneMessage,
-        tab::{Tab, TabPanesState, TabPanesType},
+        tab::{Tab, TabPanesType},
     },
 };
 
@@ -168,6 +168,8 @@ impl App {
                 };
 
                 tab.panes.remove(&TabPanesType::Floating);
+
+                return AppTask::done(TTermAction::FocusedTabToggleFloating.into());
             }
             AppMsg::FocusPane(id) => {
                 let (tabs, current_tab) = get_main_state![tabs, current_tab];
@@ -243,31 +245,7 @@ impl App {
                             return AppTask::none();
                         };
 
-                        current_tab.current_panes_type = match current_tab.current_panes_type {
-                            TabPanesType::Normal => TabPanesType::Floating,
-                            TabPanesType::Floating => TabPanesType::Normal,
-                        };
-
-                        if !current_tab
-                            .panes
-                            .contains_key(&current_tab.current_panes_type)
-                        {
-                            let (tab_pane_state, task) = match TabPanesState::new(&config.terminal)
-                            {
-                                Ok(res) => res,
-                                Err(err) => {
-                                    return AppTask::done(AppMsg::Error {
-                                        message: err.to_string(),
-                                        critical: false,
-                                    });
-                                }
-                            };
-                            current_tab
-                                .panes
-                                .insert(current_tab.current_panes_type, tab_pane_state);
-
-                            return task;
-                        }
+                        return current_tab.toggle_floating(&config.terminal);
                     }
 
                     TTermAction::SplitFocusedPane(direction) => {

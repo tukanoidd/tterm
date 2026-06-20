@@ -138,6 +138,36 @@ impl Tab {
             .unwrap_or_else(AppTask::none)
     }
 
+    pub fn toggle_floating(&mut self, terminal_config: &TerminalConfig) -> AppTask {
+        self.current_panes_type = match self.current_panes_type {
+            TabPanesType::Normal => TabPanesType::Floating,
+            TabPanesType::Floating => TabPanesType::Normal,
+        };
+
+        let mut tasks = vec![];
+
+        if !self.panes.contains_key(&self.current_panes_type) {
+            let (tab_pane_state, task) = match TabPanesState::new(terminal_config) {
+                Ok(res) => res,
+                Err(err) => {
+                    return AppTask::done(AppMsg::Error {
+                        message: err.to_string(),
+                        critical: false,
+                    });
+                }
+            };
+            self.panes.insert(self.current_panes_type, tab_pane_state);
+
+            tasks.push(task);
+        }
+
+        let panes = self.panes.get_mut(&self.current_panes_type).unwrap();
+
+        tasks.push(AppTask::done(AppMsg::FocusPane(panes.focused_pane)));
+
+        AppTask::batch(tasks)
+    }
+
     pub fn pane(&self, id: Uuid) -> Option<(&pane_grid::Pane, &PaneState)> {
         self.panes.iter().find_map(|(_, p)| p.pane(id))
     }
