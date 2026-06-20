@@ -5,7 +5,7 @@ use std::{
 
 use bon::bon;
 use derive_more::{Debug, From};
-use iced::widget::{container, pane_grid};
+use iced::widget::{container, mouse_area, pane_grid};
 use iced_term::{Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
@@ -64,12 +64,15 @@ impl PaneState {
 
     pub fn view(&self, is_focused: bool) -> AppElement<'_> {
         container(
-            TerminalView::show(&self.terminal)
-                .map(|e| IdPaneMessage {
-                    id: self.id,
-                    msg: e.into(),
-                })
-                .map(AppMsg::from),
+            mouse_area(
+                TerminalView::show(&self.terminal)
+                    .map(|e| IdPaneMessage {
+                        id: self.id,
+                        msg: e.into(),
+                    })
+                    .map(AppMsg::from),
+            )
+            .on_enter(AppMsg::FocusPane(self.id)),
         )
         .padding(4)
         .style(move |theme| {
