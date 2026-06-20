@@ -4,6 +4,8 @@ use chumsky::prelude::*;
 use derive_more::Display;
 use serde::{Deserialize, Serialize, de::Visitor};
 
+use crate::app::KeyBindPanelType;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeyBindsConfig {
@@ -45,6 +47,7 @@ default_keybinds! {
         @[Ctrl Shift] + ["T"] => NewTab,
         @[Ctrl Shift] + ["W"] => CloseFocusedTab,
         @[Ctrl Shift] + ["F"] => FocusedTabToggleFloating,
+        @[Ctrl Shift] + ["S"] => FocusedTabTogglePaneStacking,
         @[Ctrl Shift] + ["1"] => SelectTab(0),
         @[Ctrl Shift] + ["2"] => SelectTab(1),
         @[Ctrl Shift] + ["3"] => SelectTab(2),
@@ -77,11 +80,12 @@ pub enum TTermAction {
     SelectTab(usize),
     #[display("Toggle Floating Panes")]
     FocusedTabToggleFloating,
+    #[display("Toggle Pane stacking")]
+    FocusedTabTogglePaneStacking,
     // Pane Actions
     #[display("Split Pane {}", match _0 {
         SplitDirection::Vertical => "Vertically",
         SplitDirection::Horizontal => "Horizontally"
-        
     })]
     SplitFocusedPane(SplitDirection),
     #[display("Close Focused Pane")]
@@ -89,6 +93,20 @@ pub enum TTermAction {
     // General Actions
     #[display("Focus {_0}")]
     Focus(FocusDirection),
+}
+
+impl<'a> From<&'a TTermAction> for KeyBindPanelType {
+    fn from(action: &'a TTermAction) -> Self {
+        match action {
+            TTermAction::NewTab
+            | TTermAction::CloseFocusedTab
+            | TTermAction::SelectTab(_)
+            | TTermAction::FocusedTabToggleFloating
+            | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
+            TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
+            TTermAction::Focus(_) => Self::General,
+        }
+    }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -102,7 +120,7 @@ pub enum FocusDirection {
     Up,
     Down,
     Left,
-    Right
+    Right,
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]

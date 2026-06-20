@@ -22,6 +22,7 @@ tokio = "1.52"
 uuid = "1.23"
 convert_case = "0.11"
 itertools = "0.15"
+strum = "0.28"
 
 chumsky = { version = "0.13", features = ["nightly"] }
 
@@ -76,6 +77,7 @@ chumsky.workspace = true
 bon.workspace = true
 derive_more = { workspace = true, features = ["debug", "display", "from"] }
 smart-default.workspace = true
+strum = { workspace = true, features = ["derive"] }
 
 serde = { workspace = true, features = ["derive"] }
 ron.workspace = true

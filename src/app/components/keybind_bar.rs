@@ -6,6 +6,7 @@ use iced::{
 };
 use iced_aw::DropDown;
 use itertools::Itertools;
+use strum::VariantArray;
 
 use crate::{
     app::{AppElement, AppMsg, KeyBindPanelType},
@@ -34,58 +35,11 @@ impl<'a> KeyBindBar<'a> {
             keybind_panel_expanded,
         } = self;
 
-        macro_rules! panel {
-            (
-                $panel_ty:ident: [
-                    $(
-                        $action:ident
-                        $(@($($tp:ident),*))?
-                        $(@{$sp:ident})?
-                    )|+
-                ]
-            ) => {{
-                let actions = keybinds_config.actions.iter().filter(|(_, action)| {
-                    matches!(
-                        action,
-                        $(panel!(@act $action $(@($($tp),*))? $(@{$sp})?))|+
-                    )
-                });
+        let panels = <KeyBindPanelType as VariantArray>::VARIANTS
+            .iter()
+            .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded));
 
-                Self::panel(
-                    KeyBindPanelType::$panel_ty,
-                    actions,
-                    keybind_panel_expanded
-                )
-            }};
-
-            (@act $name:ident) => {
-                TTermAction::$name
-            };
-            (@act $name:ident @($($p:ident),*)) => {
-                TTermAction::$name($(panel!(@act @tup $p)),*)
-            };
-            (@act @tup $tup_var:ident) => { _ };
-            (@act $name:ident @{$($p:ident)?}) => {
-                TTermAction::$name {..}
-            };
-        }
-
-        let tab_panel = panel!(
-            Tab: [
-                NewTab
-                | CloseFocusedTab
-                | SelectTab @(_t)
-                | FocusedTabToggleFloating
-            ]
-        );
-        let pane_panel = panel!(
-            Pane: [SplitFocusedPane @(_d) | CloseFocusedPane]
-        );
-        let general_panel = panel!(
-            General: [Focus @(_d)]
-        );
-
-        row([tab_panel, pane_panel, general_panel])
+        row(panels)
             .padding(Padding::default().bottom(5).left(5).right(5))
             .wrap()
             .into()
@@ -96,6 +50,9 @@ impl<'a> KeyBindBar<'a> {
         binds: impl IntoIterator<Item = (&'a KeyBind, &'a TTermAction)>,
         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
+        let binds = binds
+            .into_iter()
+            .filter(|(_, a)| KeyBindPanelType::from(*a) == ty);
         let table = table(
             [
                 table::column(text("Binding"), |(bind, _): (&KeyBind, &TTermAction)| {

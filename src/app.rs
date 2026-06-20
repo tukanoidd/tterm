@@ -11,6 +11,7 @@ use iced::{
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
+use strum::VariantArray;
 use uuid::Uuid;
 
 use crate::{
@@ -247,6 +248,13 @@ impl App {
 
                         return current_tab.toggle_floating(&config.terminal);
                     }
+                    TTermAction::FocusedTabTogglePaneStacking => {
+                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                            return AppTask::none();
+                        };
+
+                        current_tab.toggle_stacking();
+                    }
 
                     TTermAction::SplitFocusedPane(direction) => {
                         let Some(current_tab) = tabs.get_mut(*current_tab) else {
@@ -445,7 +453,7 @@ pub enum AppState {
     },
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, VariantArray)]
 pub enum KeyBindPanelType {
     Tab,
     Pane,
@@ -454,7 +462,7 @@ pub enum KeyBindPanelType {
 
 impl KeyBindPanelType {
     pub fn title(&self) -> String {
-        format!("{self} Panel")
+        format!("{self} Actions")
     }
 }
 
@@ -464,7 +472,8 @@ impl From<TTermAction> for KeyBindPanelType {
             TTermAction::NewTab
             | TTermAction::CloseFocusedTab
             | TTermAction::SelectTab(_)
-            | TTermAction::FocusedTabToggleFloating => Self::Tab,
+            | TTermAction::FocusedTabToggleFloating
+            | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
             TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
             TTermAction::Focus(_) => Self::General,
         }
