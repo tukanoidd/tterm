@@ -84,27 +84,27 @@ impl PaneState {
         .into()
     }
 
-    pub fn update(&mut self, msg: PaneMessage) -> AppTask {
+    pub fn update(&mut self, msg: &PaneMessage) -> Option<AppTask> {
         match msg {
             PaneMessage::TerminalMsg(iced_term::Event::BackendCall(_, command)) => {
                 let action = self
                     .terminal
-                    .handle(iced_term::Command::ProxyToBackend(command));
+                    .handle(iced_term::Command::ProxyToBackend(command.clone()));
 
                 if action == iced_term::actions::Action::Shutdown {
-                    return AppTask::done(
+                    return Some(AppTask::done(
                         IdPaneMessage {
                             id: self.id,
                             msg: PaneMessage::Close,
                         }
                         .into(),
-                    );
+                    ));
                 }
             }
             _ => unreachable!(),
         }
 
-        AppTask::none()
+        None
     }
 
     pub fn subscription(&self) -> AppSubscription {

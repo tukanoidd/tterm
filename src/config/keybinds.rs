@@ -44,6 +44,7 @@ default_keybinds! {
     @actions: [
         @[Ctrl Shift] + ["T"] => NewTab,
         @[Ctrl Shift] + ["W"] => CloseFocusedTab,
+        @[Ctrl Shift] + ["F"] => FocusedTabToggleFloating,
         @[Ctrl Shift] + ["1"] => SelectTab(0),
         @[Ctrl Shift] + ["2"] => SelectTab(1),
         @[Ctrl Shift] + ["3"] => SelectTab(2),
@@ -74,6 +75,8 @@ pub enum TTermAction {
     CloseFocusedTab,
     #[display("Select Tab {_0}")]
     SelectTab(usize),
+    #[display("Toggle Floating Panes")]
+    FocusedTabToggleFloating,
     // Pane Actions
     #[display("Split Pane {}", match _0 {
         SplitDirection::Vertical => "Vertically",

@@ -71,7 +71,12 @@ impl<'a> KeyBindBar<'a> {
         }
 
         let tab_panel = panel!(
-            Tab: [NewTab | CloseFocusedTab | SelectTab @(_t)]
+            Tab: [
+                NewTab
+                | CloseFocusedTab
+                | SelectTab @(_t)
+                | FocusedTabToggleFloating
+            ]
         );
         let pane_panel = panel!(
             Pane: [SplitFocusedPane @(_d) | CloseFocusedPane]

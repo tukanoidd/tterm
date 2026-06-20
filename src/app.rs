@@ -7,11 +7,7 @@ use iced::{
     Length,
     alignment::Horizontal,
     keyboard::Modifiers,
-    widget::{
-        center, column,
-        pane_grid::{self, ResizeEvent},
-        rule, text,
-    },
+    widget::{center, column, rule, text},
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
@@ -24,8 +20,8 @@ use crate::{
         keybinds::{FocusDirection, KeyBind, Modifier, TTermAction},
     },
     multiplex::{
-        pane::{IdPaneMessage, PaneMessage},
-        tab::Tab,
+        pane::IdPaneMessage,
+        tab::{Tab, TabPanesState, TabPanesType},
     },
 };
 
@@ -165,72 +161,30 @@ impl App {
                     TTermAction::SelectTab(tab.saturating_sub(1.clamp(0, tabs.len()))).into(),
                 );
             }
+            AppMsg::TabResetFloating(id) => {
+                let tabs = get_main_state![tabs];
+                let Some(tab) = tabs.iter_mut().find(|t| t.id == id) else {
+                    return AppTask::none();
+                };
+
+                tab.panes.remove(&TabPanesType::Floating);
+            }
             AppMsg::FocusPane(id) => {
                 let (tabs, current_tab) = get_main_state![tabs, current_tab];
                 let Some(tab) = tabs.get_mut(*current_tab) else {
                     return AppTask::none();
                 };
 
-                tab.focused_pane = id;
-
-                return tab
-                    .pane(id)
-                    .map(|(_, p)| p.focus())
-                    .unwrap_or_else(AppTask::none);
+                return tab.focus_pane(id);
             }
 
-            AppMsg::Pane(IdPaneMessage { id, msg }) => {
+            AppMsg::Pane(pane_msg) => {
                 let tabs = get_main_state![tabs];
 
-                match msg {
-                    PaneMessage::Resize(ResizeEvent { split, ratio }) => {
-                        let Some(tab) = tabs.iter_mut().find(|tab| tab.pane(id).is_some()) else {
-                            return AppTask::none();
-                        };
-
-                        tab.panes.resize(split, ratio);
-                    }
-                    PaneMessage::Dragged(event) => {
-                        if let Some(tab) = tabs.iter_mut().find(|tab| tab.pane(id).is_some()) {
-                            match event {
-                                pane_grid::DragEvent::Picked { pane } => {
-                                    let Some(p) = tab.panes.get(pane) else {
-                                        return AppTask::none();
-                                    };
-
-                                    return AppTask::done(AppMsg::FocusPane(p.id));
-                                }
-                                pane_grid::DragEvent::Dropped { pane, target } => {
-                                    tab.panes.drop(pane, target);
-
-                                    let Some(p) = tab.panes.get(pane) else {
-                                        return AppTask::none();
-                                    };
-
-                                    return AppTask::done(AppMsg::FocusPane(p.id));
-                                }
-                                pane_grid::DragEvent::Canceled { .. } => {}
-                            }
-                        }
-                    }
-                    PaneMessage::Close => {
-                        let Some(tab) = tabs.iter_mut().find(|tab| tab.pane(id).is_some()) else {
-                            return AppTask::none();
-                        };
-
-                        return tab.close_pane(id);
-                    }
-                    msg => {
-                        let Some((_, pane_state)) =
-                            tabs.iter_mut().find_map(|tab| tab.pane_mut(id))
-                        else {
-                            tracing::warn!("Failed to find pane {id}");
-                            return AppTask::none();
-                        };
-
-                        return pane_state.update(msg);
-                    }
-                }
+                return tabs
+                    .iter_mut()
+                    .find_map(|t| t.update_pane(&pane_msg))
+                    .unwrap_or_else(AppTask::none);
             }
 
             AppMsg::PanelToggle { ty, force } => {
@@ -271,11 +225,48 @@ impl App {
 
                         *current_tab = index;
 
-                        if !tabs.is_empty()
-                            && let Some((_, pane_state)) =
-                                tabs[*current_tab].pane(tabs[*current_tab].focused_pane)
-                        {
+                        if !tabs.is_empty() {
+                            let current_tab = &mut tabs[*current_tab];
+                            let Some((_, pane_state)) = current_tab
+                                .panes
+                                .get_mut(&current_tab.current_panes_type)
+                                .and_then(|panes| panes.focused_pane_mut())
+                            else {
+                                return AppTask::none();
+                            };
+
                             return AppTask::done(AppMsg::FocusPane(pane_state.id));
+                        }
+                    }
+                    TTermAction::FocusedTabToggleFloating => {
+                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                            return AppTask::none();
+                        };
+
+                        current_tab.current_panes_type = match current_tab.current_panes_type {
+                            TabPanesType::Normal => TabPanesType::Floating,
+                            TabPanesType::Floating => TabPanesType::Normal,
+                        };
+
+                        if !current_tab
+                            .panes
+                            .contains_key(&current_tab.current_panes_type)
+                        {
+                            let (tab_pane_state, task) = match TabPanesState::new(&config.terminal)
+                            {
+                                Ok(res) => res,
+                                Err(err) => {
+                                    return AppTask::done(AppMsg::Error {
+                                        message: err.to_string(),
+                                        critical: false,
+                                    });
+                                }
+                            };
+                            current_tab
+                                .panes
+                                .insert(current_tab.current_panes_type, tab_pane_state);
+
+                            return task;
                         }
                     }
 
@@ -293,17 +284,11 @@ impl App {
                         };
                     }
                     TTermAction::CloseFocusedPane => {
-                        let Some(tab) = tabs.get(*current_tab) else {
+                        let Some(tab) = tabs.get_mut(*current_tab) else {
                             return AppTask::none();
                         };
 
-                        return AppTask::done(
-                            IdPaneMessage {
-                                id: tab.focused_pane,
-                                msg: PaneMessage::Close,
-                            }
-                            .into(),
-                        );
+                        return tab.close_focused_pane();
                     }
 
                     TTermAction::Focus(direction) => {
@@ -311,7 +296,7 @@ impl App {
                             return AppTask::none();
                         };
 
-                        match tab.focus_pane(direction) {
+                        match tab.focus_pane_directional(direction) {
                             Some(task) => return task,
                             None => match direction {
                                 FocusDirection::Left => {
@@ -498,9 +483,10 @@ impl KeyBindPanelType {
 impl From<TTermAction> for KeyBindPanelType {
     fn from(value: TTermAction) -> Self {
         match value {
-            TTermAction::NewTab | TTermAction::CloseFocusedTab | TTermAction::SelectTab(_) => {
-                Self::Tab
-            }
+            TTermAction::NewTab
+            | TTermAction::CloseFocusedTab
+            | TTermAction::SelectTab(_)
+            | TTermAction::FocusedTabToggleFloating => Self::Tab,
             TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
             TTermAction::Focus(_) => Self::General,
         }
@@ -522,6 +508,8 @@ pub enum AppMsg {
 
     #[from(skip)]
     CloseTab(Uuid),
+    #[from(skip)]
+    TabResetFloating(Uuid),
     #[from(skip)]
     FocusPane(Uuid),
 
