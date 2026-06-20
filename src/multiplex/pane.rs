@@ -5,7 +5,7 @@ use std::{
 
 use bon::bon;
 use derive_more::{Debug, From};
-use iced::widget::pane_grid;
+use iced::widget::{container, pane_grid};
 use iced_term::{Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
@@ -62,13 +62,26 @@ impl PaneState {
         })
     }
 
-    pub fn view(&self) -> AppElement<'_> {
-        TerminalView::show(&self.terminal)
-            .map(|e| IdPaneMessage {
-                id: self.id,
-                msg: e.into(),
-            })
-            .map(AppMsg::from)
+    pub fn view(&self, is_focused: bool) -> AppElement<'_> {
+        container(
+            TerminalView::show(&self.terminal)
+                .map(|e| IdPaneMessage {
+                    id: self.id,
+                    msg: e.into(),
+                })
+                .map(AppMsg::from),
+        )
+        .padding(4)
+        .style(move |theme| {
+            let palette = theme.extended_palette();
+
+            let style = container::bordered_box(theme);
+            style.border(style.border.color(match is_focused {
+                true => palette.primary.strong.color,
+                false => palette.secondary.base.color,
+            }))
+        })
+        .into()
     }
 
     pub fn update(&mut self, msg: PaneMessage) -> AppTask {

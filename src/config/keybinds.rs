@@ -88,13 +88,13 @@ pub enum TTermAction {
     Focus(FocusDirection),
 }
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SplitDirection {
     Vertical,
     Horizontal,
 }
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FocusDirection {
     Up,
     Down,

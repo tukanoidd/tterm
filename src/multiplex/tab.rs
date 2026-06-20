@@ -48,13 +48,13 @@ impl Tab {
 
     pub fn view(&self) -> AppElement<'_> {
         pane_grid(&self.panes, |_pane, state, _| {
-            pane_grid::Content::new(responsive(|_| state.view())).style(
-                match self.focused_pane == state.id {
+            pane_grid::Content::new(responsive(|_| state.view(state.id == self.focused_pane)))
+                .style(match self.focused_pane == state.id {
                     true => style::pane_focused,
                     false => style::pane_active,
-                },
-            )
+                })
         })
+        .spacing(4)
         .into()
     }
 
@@ -94,12 +94,10 @@ impl Tab {
         Ok(AppTask::done(AppMsg::FocusPane(pane_id)))
     }
 
-    pub fn focus_pane(&mut self, direction: FocusDirection) -> AppTask {
-        let Some((focused_pane, _)) = self.pane(self.focused_pane) else {
-            return AppTask::none();
-        };
+    pub fn focus_pane(&mut self, direction: FocusDirection) -> Option<AppTask> {
+        let (focused_pane, _) = self.pane(self.focused_pane)?;
 
-        let Some(new_focus_pane) = self
+        let new_focus_pane = self
             .panes
             .adjacent(
                 *focused_pane,
@@ -114,12 +112,9 @@ impl Tab {
                 self.panes
                     .iter()
                     .find_map(|(p, s)| (p == &ap).then_some(s.id))
-            })
-        else {
-            return AppTask::none();
-        };
+            })?;
 
-        AppTask::done(AppMsg::FocusPane(new_focus_pane))
+        Some(AppTask::done(AppMsg::FocusPane(new_focus_pane)))
     }
 
     pub fn pane(&self, id: Uuid) -> Option<(&pane_grid::Pane, &PaneState)> {

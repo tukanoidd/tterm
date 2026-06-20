@@ -21,7 +21,7 @@ use crate::{
     app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
     config::{
         Config,
-        keybinds::{KeyBind, Modifier, TTermAction},
+        keybinds::{FocusDirection, KeyBind, Modifier, TTermAction},
     },
     multiplex::{
         pane::{IdPaneMessage, PaneMessage},
@@ -311,7 +311,26 @@ impl App {
                             return AppTask::none();
                         };
 
-                        return tab.focus_pane(direction);
+                        match tab.focus_pane(direction) {
+                            Some(task) => return task,
+                            None => match direction {
+                                FocusDirection::Left => {
+                                    if *current_tab != 0 {
+                                        return AppTask::done(
+                                            TTermAction::SelectTab(*current_tab - 1).into(),
+                                        );
+                                    }
+                                }
+                                FocusDirection::Right => {
+                                    if *current_tab < tabs.len() - 1 {
+                                        return AppTask::done(
+                                            TTermAction::SelectTab(*current_tab + 1).into(),
+                                        );
+                                    }
+                                }
+                                FocusDirection::Up | FocusDirection::Down => {}
+                            },
+                        }
                     }
                 }
             }
