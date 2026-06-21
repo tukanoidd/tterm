@@ -202,16 +202,19 @@ impl App {
 
                 match tterm_action {
                     TTermAction::NewTab => {
-                        let (tab, task) =
-                            match Tab::builder().terminal_config(&config.terminal).build() {
-                                Ok(tab) => tab,
-                                Err(err) => {
-                                    return AppTask::done(AppMsg::Error {
-                                        message: err.to_string(),
-                                        critical: true,
-                                    });
-                                }
-                            };
+                        let (tab, task) = match Tab::builder()
+                            .terminal_config(&config.terminal)
+                            .keybinds_config(&config.keybinds)
+                            .build()
+                        {
+                            Ok(tab) => tab,
+                            Err(err) => {
+                                return AppTask::done(AppMsg::Error {
+                                    message: err.to_string(),
+                                    critical: true,
+                                });
+                            }
+                        };
 
                         tabs.push(tab);
 
@@ -246,7 +249,7 @@ impl App {
                             return AppTask::none();
                         };
 
-                        return current_tab.toggle_floating(&config.terminal);
+                        return current_tab.toggle_floating(&config.terminal, &config.keybinds);
                     }
                     TTermAction::FocusedTabTogglePaneStacking => {
                         let Some(current_tab) = tabs.get_mut(*current_tab) else {
@@ -261,7 +264,11 @@ impl App {
                             return AppTask::none();
                         };
 
-                        return match current_tab.split_focused(direction, &config.terminal) {
+                        return match current_tab.split_focused(
+                            direction,
+                            &config.terminal,
+                            &config.keybinds,
+                        ) {
                             Ok(task) => task,
                             Err(err) => AppTask::done(AppMsg::Error {
                                 message: err.to_string(),

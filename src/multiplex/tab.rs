@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::{
-        keybinds::{FocusDirection, SplitDirection},
+        keybinds::{FocusDirection, KeyBindsConfig, SplitDirection},
         terminal::TerminalConfig,
     },
     multiplex::pane::{IdPaneMessage, PaneState},
@@ -36,8 +36,12 @@ pub struct Tab {
 #[bon]
 impl Tab {
     #[builder]
-    pub fn new(name: Option<String>, terminal_config: &TerminalConfig) -> Result<(Self, AppTask)> {
-        let (tab_pane_state, task) = TabPanesState::new(terminal_config)?;
+    pub fn new(
+        name: Option<String>,
+        terminal_config: &TerminalConfig,
+        keybinds_config: &KeyBindsConfig,
+    ) -> Result<(Self, AppTask)> {
+        let (tab_pane_state, task) = TabPanesState::new(terminal_config, keybinds_config)?;
         let panes = HashMap::from_iter([(TabPanesType::Normal, tab_pane_state)]);
 
         let tab = Tab {
@@ -103,12 +107,13 @@ impl Tab {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
+        keybinds_config: &KeyBindsConfig,
     ) -> Result<AppTask> {
         let Some(panes) = self.panes.get_mut(&self.current_panes_type) else {
             return Ok(AppTask::none());
         };
 
-        panes.split_focused(direction, terminal_config)
+        panes.split_focused(direction, terminal_config, keybinds_config)
     }
 
     pub fn focus_pane_directional(&mut self, direction: FocusDirection) -> Option<AppTask> {
@@ -145,7 +150,11 @@ impl Tab {
             .unwrap_or_else(AppTask::none)
     }
 
-    pub fn toggle_floating(&mut self, terminal_config: &TerminalConfig) -> AppTask {
+    pub fn toggle_floating(
+        &mut self,
+        terminal_config: &TerminalConfig,
+        keybinds_config: &KeyBindsConfig,
+    ) -> AppTask {
         self.current_panes_type = match self.current_panes_type {
             TabPanesType::Normal => TabPanesType::Floating,
             TabPanesType::Floating => TabPanesType::Normal,
@@ -154,7 +163,8 @@ impl Tab {
         let mut tasks = vec![];
 
         if !self.panes.contains_key(&self.current_panes_type) {
-            let (tab_pane_state, task) = match TabPanesState::new(terminal_config) {
+            let (tab_pane_state, task) = match TabPanesState::new(terminal_config, keybinds_config)
+            {
                 Ok(res) => res,
                 Err(err) => {
                     return AppTask::done(AppMsg::Error {
@@ -203,11 +213,15 @@ pub struct TabPanesState {
 }
 
 impl TabPanesState {
-    pub fn new(terminal_config: &TerminalConfig) -> Result<(Self, AppTask)> {
+    pub fn new(
+        terminal_config: &TerminalConfig,
+        keybinds_config: &KeyBindsConfig,
+    ) -> Result<(Self, AppTask)> {
         let root_pane_id = Uuid::now_v7();
         let pane_state = PaneState::builder()
             .id(root_pane_id)
             .terminal_config(terminal_config)
+            .keybinds_config(keybinds_config)
             .build()?;
         let task = AppTask::done(AppMsg::FocusPane(root_pane_id));
 
@@ -288,6 +302,7 @@ impl TabPanesState {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
+        keybinds_config: &KeyBindsConfig,
     ) -> Result<AppTask> {
         let Some((focused_pane, _)) = self.focused_pane() else {
             return Ok(AppTask::none());
@@ -297,6 +312,7 @@ impl TabPanesState {
         let pane_state = PaneState::builder()
             .id(pane_id)
             .terminal_config(terminal_config)
+            .keybinds_config(keybinds_config)
             .build()?;
 
         self.panes.split(

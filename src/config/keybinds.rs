@@ -274,7 +274,7 @@ macro_rules! named_key {
         })?),+
         $(,)?
     ) => {
-        #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]
+        #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum NamedKey {
             $first_name,
             $($name),+
