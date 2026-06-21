@@ -2,6 +2,7 @@ pub mod app;
 pub mod config;
 pub mod multiplex;
 
+use iced::advanced::graphics::core::window;
 use iced_fonts::LUCIDE_FONT_BYTES;
 use rootcause::{Result, hooks::Hooks};
 use rootcause_backtrace::BacktraceCollector;
@@ -20,7 +21,21 @@ fn main() -> Result<()> {
         .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
-        .font(LUCIDE_FONT_BYTES);
+        .font(LUCIDE_FONT_BYTES)
+        .window(window::Settings {
+            maximized: true,
+            visible: true,
+            resizable: true,
+            closeable: true,
+            minimizable: true,
+            decorations: false,
+            transparent: true,
+            blur: true,
+            level: window::Level::Normal,
+            exit_on_close_request: true,
+            position: window::Position::Centered,
+            ..Default::default()
+        });
     let app = fonts::load(app);
 
     app.run()?;
