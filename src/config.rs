@@ -30,16 +30,20 @@ impl Config {
 
         let config_path = config_dir.join("config.ron");
 
+        let options = ron::options::Options::default().with_default_extension(
+            ron::extensions::Extensions::UNWRAP_NEWTYPES
+                | ron::extensions::Extensions::UNWRAP_VARIANT_NEWTYPES
+                | ron::extensions::Extensions::IMPLICIT_SOME,
+        );
+
         let config = match config_path.exists() {
-            true => ron::from_str(&tokio::fs::read_to_string(config_path).await?)?,
+            true => options.from_str(&tokio::fs::read_to_string(config_path).await?)?,
             false => {
                 tracing::warn!("Config at {config_path:?} was not found, creating default...");
 
                 let config = Config::default();
-                let config_str = ron::ser::to_string_pretty(
-                    &config,
-                    ron::ser::PrettyConfig::new().depth_limit(4),
-                )?;
+                let config_str = options
+                    .to_string_pretty(&config, ron::ser::PrettyConfig::new().depth_limit(4))?;
 
                 let mut file = tokio::fs::File::create(config_path).await?;
                 file.write_all(config_str.as_bytes()).await?;

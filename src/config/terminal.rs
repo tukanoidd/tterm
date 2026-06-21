@@ -10,6 +10,7 @@ use crate::fonts::EmbeddedFont;
 pub struct TerminalConfig {
     pub font: TerminalFontConfig,
     pub theme: TerminalThemeConfig,
+    pub shell: Option<String>,
 }
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]

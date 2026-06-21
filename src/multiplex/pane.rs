@@ -44,7 +44,7 @@ impl PaneState {
 
         TERM_ID.store(term_id + 1, Ordering::SeqCst);
 
-        let TerminalConfig { font, theme } = terminal_config;
+        let TerminalConfig { font, theme, shell } = terminal_config;
 
         // TODO: configurable working_dir
         let working_directory = std::env::current_dir()?;
@@ -56,8 +56,10 @@ impl PaneState {
                 font: font.clone().into(),
                 theme: theme.clone().into(),
                 backend: iced_term::settings::BackendSettings {
-                    // TODO: configurable program
-                    program: "nu".into(),
+                    program: shell
+                        .clone()
+                        .or_else(|| std::env::var("SHELL").ok())
+                        .unwrap_or("nu".into()), // This is my preferred shell, deal with it
                     args: vec![],
                     env,
                     working_directory: Some(working_directory),
