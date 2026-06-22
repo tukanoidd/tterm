@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -19,6 +20,7 @@ use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::{
         keybinds::{Key, KeyBind, KeyBindsConfig, Modifier},
+        presets::ProgramConfig,
         terminal::TerminalConfig,
     },
 };
@@ -39,6 +41,8 @@ impl PaneState {
         id: Uuid,
         terminal_config: &TerminalConfig,
         keybinds_config: &KeyBindsConfig,
+        working_directory: Option<PathBuf>,
+        program_config: Option<ProgramConfig>,
     ) -> Result<Self> {
         let term_id = TERM_ID.load(Ordering::SeqCst);
 
@@ -46,9 +50,12 @@ impl PaneState {
 
         let TerminalConfig { font, theme, shell } = terminal_config;
 
-        // TODO: configurable working_dir
-        let working_directory = std::env::current_dir()?;
         let env = std::env::vars().collect::<HashMap<_, _>>();
+
+        let (program, args) = match program_config {
+            Some(ProgramConfig { command, args }) => (Some(command), Some(args)),
+            None => (None, None),
+        };
 
         let mut terminal = Terminal::new(
             term_id,
@@ -56,13 +63,24 @@ impl PaneState {
                 font: font.clone().into(),
                 theme: theme.clone().into(),
                 backend: iced_term::settings::BackendSettings {
-                    program: shell
-                        .clone()
+                    program: program
+                        .map(|p| shellexpand::full(&p).map(|p| p.to_string()))
+                        .or_else(|| {
+                            shell
+                                .as_ref()
+                                .map(|shell| shellexpand::full(&shell).map(|s| s.to_string()))
+                        })
+                        .transpose()?
                         .or_else(|| std::env::var("SHELL").ok())
                         .unwrap_or("nu".into()), // This is my preferred shell, deal with it
-                    args: vec![],
+                    args: args.unwrap_or_default(),
                     env,
-                    working_directory: Some(working_directory),
+                    working_directory: match working_directory {
+                        Some(d) => Some(PathBuf::from(
+                            shellexpand::full(&d.to_string_lossy())?.to_string(),
+                        )),
+                        None => Some(std::env::current_dir()?),
+                    },
                 },
             },
         )?;

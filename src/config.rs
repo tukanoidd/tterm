@@ -1,5 +1,7 @@
+pub mod common;
 pub mod general;
 pub mod keybinds;
+pub mod presets;
 pub mod terminal;
 
 use directories::ProjectDirs;
@@ -8,12 +10,16 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
 
-use crate::config::{general::GeneralConfig, keybinds::KeyBindsConfig, terminal::TerminalConfig};
+use crate::config::{
+    general::GeneralConfig, keybinds::KeyBindsConfig, presets::PresetsConfig,
+    terminal::TerminalConfig,
+};
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub general: GeneralConfig,
+    pub presets: PresetsConfig,
     pub terminal: TerminalConfig,
     pub keybinds: KeyBindsConfig,
 }

@@ -1,7 +1,11 @@
 pub mod app;
+pub mod cli;
 pub mod config;
 pub mod multiplex;
 
+use std::sync::OnceLock;
+
+use clap::Parser;
 use iced::advanced::graphics::core::window;
 use iced_fonts::LUCIDE_FONT_BYTES;
 use rootcause::{Result, hooks::Hooks};
@@ -9,13 +13,22 @@ use rootcause_backtrace::BacktraceCollector;
 use tracing_subscriber::prelude::*;
 use tterm_macros::fonts;
 
-use crate::app::App;
+use crate::{
+    app::App,
+    cli::{Cli, LogLevel},
+};
 
 fonts!("assets/fonts/");
 
+static CLI_PRESET: OnceLock<Option<String>> = OnceLock::new();
+
 fn main() -> Result<()> {
     init_rootcause()?;
-    init_tracing()?;
+
+    let Cli { preset, log_level } = Cli::parse();
+    let _ = CLI_PRESET.set(preset);
+
+    init_tracing(log_level)?;
 
     let app = iced::application(App::boot, App::update, App::view)
         .title(App::title)
@@ -51,15 +64,7 @@ fn init_rootcause() -> Result<()> {
     Ok(())
 }
 
-fn init_tracing() -> Result<()> {
-    let level = match cfg!(feature = "trace") {
-        true => "trace",
-        false => match cfg!(debug_assertions) {
-            true => "debug",
-            false => "info",
-        },
-    };
-
+fn init_tracing(log_level: LogLevel) -> Result<()> {
     const EXTERNAL_LEVELS: &[(&str, &[&str])] = &[
         ("error", &["wgpu_hal"]),
         (
@@ -83,7 +88,7 @@ fn init_tracing() -> Result<()> {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().compact())
         .with(tracing_subscriber::EnvFilter::new(format!(
-            "{level},{}",
+            "{log_level},{}",
             EXTERNAL_LEVELS
                 .iter()
                 .flat_map(|(level, crates)| crates
@@ -94,7 +99,7 @@ fn init_tracing() -> Result<()> {
         )))
         .try_init()?;
 
-    tracing::debug!("Tracing initialized! [{level}]");
+    tracing::debug!("Tracing initialized! [{log_level}]");
 
     Ok(())
 }

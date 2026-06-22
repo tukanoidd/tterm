@@ -4,7 +4,10 @@ use chumsky::prelude::*;
 use derive_more::Display;
 use serde::{Deserialize, Serialize, de::Visitor};
 
-use crate::app::KeyBindPanelType;
+use crate::{
+    app::KeyBindPanelType,
+    config::{common::SplitDirection, presets::TabConfig},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -44,7 +47,7 @@ macro_rules! default_keybinds {
 
 default_keybinds! {
     @actions: [
-        @[Ctrl Shift] + ["T"] => NewTab,
+        @[Ctrl Shift] + ["T"] => NewTab(None),
         @[Ctrl Shift] + ["W"] => CloseFocusedTab,
         @[Ctrl Shift] + ["F"] => FocusedTabToggleFloating,
         @[Ctrl Shift] + ["S"] => FocusedTabTogglePaneStacking,
@@ -73,7 +76,7 @@ default_keybinds! {
 pub enum TTermAction {
     // Tab Actions
     #[display("New Tab")]
-    NewTab,
+    NewTab(Option<TabConfig>),
     #[display("Close Tab")]
     CloseFocusedTab,
     #[display("Select Tab {_0}")]
@@ -98,7 +101,7 @@ pub enum TTermAction {
 impl<'a> From<&'a TTermAction> for KeyBindPanelType {
     fn from(action: &'a TTermAction) -> Self {
         match action {
-            TTermAction::NewTab
+            TTermAction::NewTab(_)
             | TTermAction::CloseFocusedTab
             | TTermAction::SelectTab(_)
             | TTermAction::FocusedTabToggleFloating
@@ -107,12 +110,6 @@ impl<'a> From<&'a TTermAction> for KeyBindPanelType {
             TTermAction::Focus(_) => Self::General,
         }
     }
-}
-
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum SplitDirection {
-    Vertical,
-    Horizontal,
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

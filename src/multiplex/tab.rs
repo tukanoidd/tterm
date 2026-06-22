@@ -10,13 +10,15 @@ use iced::{
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
-use rootcause::Result;
+use rootcause::{Result, option_ext::OptionExt};
 use uuid::Uuid;
 
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::{
-        keybinds::{FocusDirection, KeyBindsConfig, SplitDirection},
+        common::SplitDirection,
+        keybinds::{FocusDirection, KeyBindsConfig},
+        presets::{PaneConfig, PaneSplitConfig, TabConfig},
         terminal::TerminalConfig,
     },
     multiplex::pane::{IdPaneMessage, PaneState},
@@ -37,12 +39,33 @@ pub struct Tab {
 impl Tab {
     #[builder]
     pub fn new(
-        name: Option<String>,
         terminal_config: &TerminalConfig,
         keybinds_config: &KeyBindsConfig,
+        tab_config: Option<TabConfig>,
     ) -> Result<(Self, AppTask)> {
-        let (tab_pane_state, task) = TabPanesState::new(terminal_config, keybinds_config)?;
-        let panes = HashMap::from_iter([(TabPanesType::Normal, tab_pane_state)]);
+        let (name, (tab_pane_state, task), floating) = match tab_config {
+            Some(TabConfig {
+                name,
+                pane,
+                floating_pane,
+            }) => (
+                name,
+                TabPanesState::new(terminal_config, keybinds_config, Some(pane))?,
+                floating_pane
+                    .map(|pane| TabPanesState::new(terminal_config, keybinds_config, Some(pane)))
+                    .transpose()?,
+            ),
+            None => (
+                None,
+                TabPanesState::new(terminal_config, keybinds_config, None)?,
+                None,
+            ),
+        };
+        let mut panes = HashMap::from_iter([(TabPanesType::Normal, tab_pane_state)]);
+
+        if let Some((tab_pane_state, _)) = floating {
+            panes.insert(TabPanesType::Floating, tab_pane_state);
+        }
 
         let tab = Tab {
             id: Uuid::now_v7(),
@@ -163,16 +186,16 @@ impl Tab {
         let mut tasks = vec![];
 
         if !self.panes.contains_key(&self.current_panes_type) {
-            let (tab_pane_state, task) = match TabPanesState::new(terminal_config, keybinds_config)
-            {
-                Ok(res) => res,
-                Err(err) => {
-                    return AppTask::done(AppMsg::Error {
-                        message: err.to_string(),
-                        critical: false,
-                    });
-                }
-            };
+            let (tab_pane_state, task) =
+                match TabPanesState::new(terminal_config, keybinds_config, None) {
+                    Ok(res) => res,
+                    Err(err) => {
+                        return AppTask::done(AppMsg::Error {
+                            message: err.to_string(),
+                            critical: false,
+                        });
+                    }
+                };
             self.panes.insert(self.current_panes_type, tab_pane_state);
 
             tasks.push(task);
@@ -208,7 +231,6 @@ pub enum TabPanesType {
 pub struct TabPanesState {
     pub panes: pane_grid::State<PaneState>,
     pub focused_pane: Uuid,
-    pub root_pane: pane_grid::Pane,
     pub stacking: bool,
 }
 
@@ -216,22 +238,114 @@ impl TabPanesState {
     pub fn new(
         terminal_config: &TerminalConfig,
         keybinds_config: &KeyBindsConfig,
+        root_node_config: Option<PaneConfig>,
     ) -> Result<(Self, AppTask)> {
         let root_pane_id = Uuid::now_v7();
-        let pane_state = PaneState::builder()
-            .id(root_pane_id)
-            .terminal_config(terminal_config)
-            .keybinds_config(keybinds_config)
-            .build()?;
-        let task = AppTask::done(AppMsg::FocusPane(root_pane_id));
 
-        let (panes, root_pane) = pane_grid::State::new(pane_state);
+        fn add_split(
+            pane: pane_grid::Pane,
+            state: &mut pane_grid::State<PaneState>,
+
+            direction: SplitDirection,
+            ratio: f32,
+            PaneConfig {
+                working_directory,
+                program,
+                split,
+            }: &PaneConfig,
+
+            terminal_config: &TerminalConfig,
+            keybinds_config: &KeyBindsConfig,
+        ) -> Result<()> {
+            let id = Uuid::now_v7();
+
+            let (new_pane, new_split) = state
+                .split(
+                    direction.into(),
+                    pane,
+                    PaneState::builder()
+                        .id(id)
+                        .terminal_config(terminal_config)
+                        .keybinds_config(keybinds_config)
+                        .maybe_working_directory(working_directory.clone())
+                        .maybe_program_config(program.clone())
+                        .build()?,
+                )
+                .ok_or_report()?;
+            state.resize(new_split, ratio);
+
+            if let Some(PaneSplitConfig {
+                direction,
+                ratio,
+                child,
+            }) = split
+            {
+                add_split(
+                    new_pane,
+                    state,
+                    *direction,
+                    (*ratio).into(),
+                    child.as_ref(),
+                    terminal_config,
+                    keybinds_config,
+                )?;
+            }
+
+            Ok(())
+        }
+
+        let task = AppTask::done(AppMsg::FocusPane(root_pane_id));
+        let panes = match root_node_config {
+            Some(PaneConfig {
+                working_directory,
+                program,
+                split,
+            }) => {
+                let root_pane_state = PaneState::builder()
+                    .id(root_pane_id)
+                    .terminal_config(terminal_config)
+                    .keybinds_config(keybinds_config)
+                    .maybe_working_directory(working_directory)
+                    .maybe_program_config(program)
+                    .build()?;
+
+                let (mut panes, root_pane) = pane_grid::State::new(root_pane_state);
+
+                if let Some(PaneSplitConfig {
+                    direction,
+                    ratio,
+                    child,
+                }) = split
+                {
+                    add_split(
+                        root_pane,
+                        &mut panes,
+                        direction,
+                        ratio.into(),
+                        child.as_ref(),
+                        terminal_config,
+                        keybinds_config,
+                    )?;
+                }
+
+                panes
+            }
+            None => {
+                let pane_state = PaneState::builder()
+                    .id(root_pane_id)
+                    .terminal_config(terminal_config)
+                    .keybinds_config(keybinds_config)
+                    .build()?;
+                let (panes, _) = pane_grid::State::new(pane_state);
+
+                panes
+            }
+        };
 
         Ok((
             TabPanesState {
                 panes,
                 focused_pane: root_pane_id,
-                root_pane,
                 stacking: false,
             },
             task,

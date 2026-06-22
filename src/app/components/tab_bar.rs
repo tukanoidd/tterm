@@ -52,7 +52,7 @@ impl<'a> TabBar<'a> {
                             )
                             .style(iced_aw::style::badge::secondary),
                         )
-                        .on_press(TTermAction::NewTab.into())
+                        .on_press(TTermAction::NewTab(None).into())
                         .into(),
                     ]))
                 .height(Length::Shrink)

@@ -15,10 +15,12 @@ use strum::VariantArray;
 use uuid::Uuid;
 
 use crate::{
+    CLI_PRESET,
     app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
     config::{
         Config,
         keybinds::{FocusDirection, KeyBind, Modifier, TTermAction},
+        presets::PresetConfig,
     },
     multiplex::{
         pane::IdPaneMessage,
@@ -60,7 +62,7 @@ impl App {
 
     pub fn view(&self) -> AppElement<'_> {
         match &self.state {
-            AppState::LoadingConfig => center(
+            AppState::LoadingConfig { .. } => center(
                 column![
                     Spinner::new().width(20.0).height(20),
                     text("Loading config...")
@@ -127,16 +129,54 @@ impl App {
 
             AppMsg::LoadConfig => return Self::load_config(),
             AppMsg::LoadedConfig(config) => {
+                let current_preset_name = CLI_PRESET
+                    .get()
+                    .cloned()
+                    .flatten()
+                    .or_else(|| config.presets.default.clone());
+                let current_preset = match current_preset_name {
+                    Some(name) => match config.presets.list.iter().find(|p| p.name == name) {
+                        Some(preset) => Some(preset),
+                        None => {
+                            tracing::debug!(
+                                "Provided preset name through CLI or the 'default' field was not found! Using the first one, if available..."
+                            );
+
+                            config.presets.list.first()
+                        }
+                    },
+                    None => {
+                        tracing::debug!(
+                            "Preset not specified through CLI or 'default' field in config! Using the first one, if available..."
+                        );
+
+                        config.presets.list.first()
+                    }
+                };
+
+                let new_tab_tasks = match current_preset {
+                    Some(PresetConfig { tabs, .. }) => tabs
+                        .iter()
+                        .map(|config| {
+                            AppTask::done(TTermAction::NewTab(Some(config.clone())).into())
+                        })
+                        .collect(),
+                    None => vec![],
+                };
+
                 self.state = AppState::Main {
                     config,
 
-                    tabs: Vec::new(),
+                    tabs: vec![],
                     current_tab: 0,
 
                     panel_expanded: HashMap::new(),
                 };
 
-                return AppTask::done(TTermAction::NewTab.into());
+                return match new_tab_tasks.is_empty() {
+                    true => AppTask::done(TTermAction::NewTab(None).into()),
+                    false => AppTask::batch(new_tab_tasks),
+                };
             }
 
             AppMsg::CloseTab(id) => {
@@ -201,10 +241,11 @@ impl App {
                 let (tabs, current_tab, config) = get_main_state![tabs, current_tab, config];
 
                 match tterm_action {
-                    TTermAction::NewTab => {
+                    TTermAction::NewTab(tab_config) => {
                         let (tab, task) = match Tab::builder()
                             .terminal_config(&config.terminal)
                             .keybinds_config(&config.keybinds)
+                            .maybe_tab_config(tab_config)
                             .build()
                         {
                             Ok(tab) => tab,
@@ -485,7 +526,7 @@ impl KeyBindPanelType {
 impl From<TTermAction> for KeyBindPanelType {
     fn from(value: TTermAction) -> Self {
         match value {
-            TTermAction::NewTab
+            TTermAction::NewTab(_)
             | TTermAction::CloseFocusedTab
             | TTermAction::SelectTab(_)
             | TTermAction::FocusedTabToggleFloating

@@ -9,6 +9,8 @@ license = "MIT"
 authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 
 [workspace.dependencies]
+clap = "4.6"
+
 iced = "0.14"
 iced_aw = { version = "0.14", default-features = false }
 iced_fonts = "0.3"
@@ -16,19 +18,21 @@ iced_fonts = "0.3"
 iced_term.git = "https://github.com/Harzu/iced_term"
 
 directories = "6.0"
+shellexpand = "3.1"
 
 tokio = "1.52"
 
 uuid = "1.23"
 convert_case = "0.11"
 itertools = "0.15"
-strum = "0.28"
 
 chumsky = { version = "0.13", features = ["nightly"] }
 
 bon = "3.9"
 derive_more = "2.1"
+ordered-float = "5.3"
 smart-default = "0.7"
+strum = "0.28"
 
 serde = "1.0"
 ron = "0.12"
@@ -60,12 +64,15 @@ comet = ["trace", "iced/debug", "iced/hot", "iced/time-travel"]
 [dependencies]
 tterm-macros.path = "tterm-macros"
 
+clap = { workspace = true, features = ["derive"] }
+
 iced = { workspace = true, features = ["advanced", "tokio"] }
 iced_aw = { workspace = true, features = ["spinner", "badge", "drop_down"] }
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced_term.workspace = true
 
 directories.workspace = true
+shellexpand.workspace = true
 
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
 
@@ -76,6 +83,7 @@ chumsky.workspace = true
 
 bon.workspace = true
 derive_more = { workspace = true, features = ["debug", "display", "from"] }
+ordered-float = { workspace = true, features = ["serde"] }
 smart-default.workspace = true
 strum = { workspace = true, features = ["derive"] }
 
