@@ -6,7 +6,7 @@ use iced::{
 use iced_aw::badge;
 use iced_fonts::lucide;
 
-use crate::{app::AppElement, config::keybinds::TTermAction, multiplex::tab::Tab};
+use crate::{app::AppElement, config::keybinds::TTermTabAction, multiplex::tab::Tab};
 
 pub struct TabBar<'a> {
     tabs: &'a [Tab],
@@ -39,7 +39,7 @@ impl<'a> TabBar<'a> {
                                 }
                             }),
                         )
-                        .on_press(TTermAction::SelectTab(ind).into())
+                        .on_press(TTermTabAction::Select(ind).into())
                         .into()
                     })
                     .chain([
@@ -52,7 +52,7 @@ impl<'a> TabBar<'a> {
                             )
                             .style(iced_aw::style::badge::secondary),
                         )
-                        .on_press(TTermAction::NewTab(None).into())
+                        .on_press(TTermTabAction::New(None).into())
                         .into(),
                     ]))
                 .height(Length::Shrink)

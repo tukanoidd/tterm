@@ -5,7 +5,295 @@ use convert_case::ccase;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Ident, LitStr, parse_macro_input};
+use syn::{Expr, Ident, LitStr, Token, Variant, bracketed, parse::Parse, parse_macro_input};
+
+#[proc_macro]
+pub fn actions(input: TokenStream) -> TokenStream {
+    let Actions { types } = parse_macro_input!(input);
+
+    let tterm_action_enum = {
+        let variants = types
+            .iter()
+            .map(|ActionType { name, .. }| {
+                let type_name = format_ident!("TTerm{name}Action");
+                quote!(#name(#type_name))
+            })
+            .collect::<Vec<_>>();
+        let keybind_panel_type_enum = {
+            let variants = types.iter().map(|ActionType { name, .. }| name);
+            let title_match_arms = types.iter().map(|ActionType { name, .. }| quote!(Self::#name => format!("{} Actions", stringify!(#name))));
+
+            quote! {
+                #[derive(
+                    Debug, derive_more::Display,
+                    Clone, Copy,
+                    PartialEq, Eq,
+                    Hash,
+                    strum::VariantArray,
+                    serde::Serialize, serde::Deserialize,
+                )]
+                pub enum KeyBindPanelType {
+                    #(#variants),*
+                }
+
+                impl KeyBindPanelType {
+                    pub fn title(&self) -> String {
+                        match self {
+                            #(#title_match_arms),*
+                        }
+                    }
+                }
+            }
+        };
+
+        let impls = {
+            let default_keybinds = {
+                let binds = types.iter().map(|ActionType { name, .. }| {
+                    let type_name = format_ident!("TTerm{name}Action");
+
+                    quote!((
+                        KeyBindPanelType::#name,
+                        HashMap::from_iter(
+                            #type_name::default_keybinds()
+                                .into_iter()
+                                .map(|(bind, action)| (
+                                    bind,
+                                    Self::#name(action)
+                                ))
+                        )
+                    ))
+                });
+
+                quote! {
+                    fn default_keybinds() -> HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>> {
+                        HashMap::from_iter([#(#binds),*])
+                    }
+                }
+            };
+
+            let from_trait = {
+                quote! {
+                    impl<IA> From<IA> for crate::app::AppMsg where IA: Into<TTermAction> {
+                        fn from(value: IA) -> crate::app::AppMsg {
+                            crate::app::AppMsg::Action(value.into())
+                        }
+                    }
+                }
+            };
+
+            quote! {
+                impl TTermAction {
+                    #default_keybinds
+                }
+
+                #from_trait
+            }
+        };
+
+        quote! {
+            #[derive(
+                Debug, derive_more::Display,
+                Clone, Hash,
+                derive_more::From,
+                serde::Serialize, serde::Deserialize
+            )]
+            pub enum TTermAction {
+                #(#variants),*
+            }
+
+            #impls
+
+            #keybind_panel_type_enum
+        }
+    };
+
+    let types = types.iter().map(|ActionType { name, actions }| {
+        let type_name = format_ident!("TTerm{name}Action");
+        let variants = actions.iter().map(|Action { variant, .. }| variant);
+
+        let impl_methods = {
+            let default_keybinds = {
+                let binds = actions.iter().flat_map(
+                    |Action {
+                         variant: Variant { ident, .. },
+                         default_bindings,
+                     }| {
+                        let ident = ident.clone();
+
+                        default_bindings.iter().map(
+                            move |KeyBind {
+                                      modifiers,
+                                      key,
+                                      as_action,
+                                  }| {
+                                let key = match key {
+                                    Key::Named(ident) => quote!(Key::Named(NamedKey::#ident)),
+                                    Key::Character(lit_str) => {
+                                        quote!(Key::Character(#lit_str.into()))
+                                    }
+                                };
+                                let modifiers = modifiers.iter().map(|m| quote!(Modifier::#m));
+
+                                quote! {(
+                                    KeyBind::new(#key, [#(#modifiers),*]),
+                                    Self::#ident #as_action
+                                )}
+                            },
+                        )
+                    },
+                );
+
+                quote! {
+                    fn default_keybinds() -> impl IntoIterator<Item = (KeyBind, #type_name)> {
+                        [#(#binds),*]
+                    }
+                }
+            };
+
+            quote! {
+                impl #type_name {
+                    #default_keybinds
+                }
+            }
+        };
+
+        quote! {
+            #[derive(
+                Debug, derive_more::Display,
+                Clone, Hash,
+                serde::Serialize, serde::Deserialize
+            )]
+            pub enum #type_name {
+                #(#variants),*
+            }
+
+            #impl_methods
+        }
+    });
+
+    quote! {
+        #tterm_action_enum
+
+        #(#types)*
+    }
+    .into()
+}
+
+struct Actions {
+    types: Vec<ActionType>,
+}
+
+impl Parse for Actions {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let types = input
+            .parse_terminated(ActionType::parse, Token![,])?
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        Ok(Self { types })
+    }
+}
+
+struct ActionType {
+    name: Ident,
+    actions: Vec<Action>,
+}
+
+impl Parse for ActionType {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let name: Ident = input.parse()?;
+        let _colon: Token![:] = input.parse()?;
+
+        let actions_input;
+        let _br = bracketed!(actions_input in input);
+        let actions = actions_input
+            .parse_terminated(Action::parse, Token![,])?
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        Ok(Self { name, actions })
+    }
+}
+
+struct Action {
+    variant: Variant,
+    default_bindings: Vec<KeyBind>,
+}
+
+impl Parse for Action {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let variant: Variant = input.parse()?;
+
+        let default_bindings_input;
+        let _br = bracketed!(default_bindings_input in input);
+        let default_bindings = default_bindings_input
+            .parse_terminated(KeyBind::parse, Token![,])?
+            .into_iter()
+            .collect();
+
+        Ok(Self {
+            variant,
+            default_bindings,
+        })
+    }
+}
+
+struct KeyBind {
+    modifiers: Vec<Ident>,
+    key: Key,
+    as_action: Option<Expr>,
+}
+
+impl Parse for KeyBind {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let _at: Token![@] = input.parse()?;
+        let mod_input;
+        let _br = bracketed!(mod_input in input);
+        let modifiers = mod_input
+            .parse_terminated(Ident::parse, Token![+])?
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        let _plus: Token![+] = input.parse()?;
+        let key: Key = input.parse()?;
+
+        let as_action = match input.peek(Token![=>]) {
+            true => {
+                let _arrow: Token![=>] = input.parse()?;
+                Some(input.parse()?)
+            }
+            false => None,
+        };
+
+        Ok(Self {
+            modifiers,
+            key,
+            as_action,
+        })
+    }
+}
+
+enum Key {
+    Named(Ident),
+    Character(LitStr),
+}
+
+impl Parse for Key {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        match input.peek(Token![@]) {
+            true => {
+                let _at: Token![@] = input.parse()?;
+                let named: Ident = input.parse()?;
+
+                Ok(Self::Named(named))
+            }
+            false => {
+                let char: LitStr = input.parse()?;
+                Ok(Self::Character(char))
+            }
+        }
+    }
+}
 
 #[proc_macro]
 pub fn fonts(input: TokenStream) -> TokenStream {

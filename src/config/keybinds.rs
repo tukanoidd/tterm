@@ -5,120 +5,75 @@ use derive_more::Display;
 use iced::widget::pane_grid;
 use serde::{Deserialize, Serialize, de::Visitor};
 
-use crate::{
-    app::KeyBindPanelType,
-    config::{common::SplitDirection, presets::TabConfig},
-};
+use tterm_macros::actions;
+
+use crate::config::{common::SplitDirection, presets::TabConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeyBindsConfig {
-    pub actions: HashMap<KeyBind, TTermAction>,
+    pub actions: HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>>,
 }
 
-macro_rules! default_keybinds {
-    (@actions: [
-        $($(@[$($mod:ident)+]+)? $(@$key_ident:ident)? $([$key_expr:expr])? =>
-            $action:ident
-            $(($($tuple_field:expr),+))?
-            $({$($struct_field:ident: $struct_field_value:expr),+})?
-        ),+
-        $(,)?
-    ]) => {
-        impl Default for KeyBindsConfig {
-            fn default() -> Self {
-                Self {
-                    actions: HashMap::from_iter([$(
-                        (
-                            KeyBind::new(default_keybinds!(@key $(@$key_ident)? $([$key_expr])?))
-                                $(.with_modifiers([$(Modifier::$mod),+]))?,
-                            TTermAction::$action
-                                $(($($tuple_field),+))?
-                                $({$($struct_field: $struct_field_value),+})?
-                        )
-                    ),+])
-                }
-            }
-        }
-    };
-
-    (@key @$name:ident) => { NamedKey::$name };
-    (@key [$char:literal]) => { $char };
-}
-
-default_keybinds! {
-    @actions: [
-        @[Ctrl Shift] + ["T"] => NewTab(None),
-        @[Ctrl Shift] + ["W"] => CloseFocusedTab,
-        @[Ctrl Shift] + ["F"] => FocusedTabToggleFloating,
-        @[Ctrl Shift] + ["S"] => FocusedTabTogglePaneStacking,
-        @[Ctrl Shift] + ["1"] => SelectTab(0),
-        @[Ctrl Shift] + ["2"] => SelectTab(1),
-        @[Ctrl Shift] + ["3"] => SelectTab(2),
-        @[Ctrl Shift] + ["4"] => SelectTab(3),
-        @[Ctrl Shift] + ["5"] => SelectTab(4),
-        @[Ctrl Shift] + ["6"] => SelectTab(5),
-        @[Ctrl Shift] + ["7"] => SelectTab(6),
-        @[Ctrl Shift] + ["8"] => SelectTab(7),
-        @[Ctrl Shift] + ["9"] => SelectTab(8),
-
-        @[Alt] + ["V"] => SplitFocusedPane(SplitDirection::Vertical),
-        @[Alt] + ["H"] => SplitFocusedPane(SplitDirection::Horizontal),
-        @[Alt] + ["W"] => CloseFocusedPane,
-        @[Alt Shift ] + @ArrowLeft => MoveFocusedPane(MoveFocusDirection::Left),
-        @[Alt Shift ] + @ArrowRight => MoveFocusedPane(MoveFocusDirection::Right),
-        @[Alt Shift ] + @ArrowUp => MoveFocusedPane(MoveFocusDirection::Up),
-        @[Alt Shift ] + @ArrowDown => MoveFocusedPane(MoveFocusDirection::Down),
-
-        @[Alt] + @ArrowLeft => Focus(MoveFocusDirection::Left),
-        @[Alt] + @ArrowRight => Focus(MoveFocusDirection::Right),
-        @[Alt] + @ArrowUp => Focus(MoveFocusDirection::Up),
-        @[Alt] + @ArrowDown => Focus(MoveFocusDirection::Down),
-    ]
-}
-
-#[derive(Debug, Display, Clone, Hash, Serialize, Deserialize)]
-pub enum TTermAction {
-    // Tab Actions
-    #[display("New Tab")]
-    NewTab(Option<TabConfig>),
-    #[display("Close Tab")]
-    CloseFocusedTab,
-    #[display("Select Tab {_0}")]
-    SelectTab(usize),
-    #[display("Toggle Floating Panes")]
-    FocusedTabToggleFloating,
-    #[display("Toggle Pane stacking")]
-    FocusedTabTogglePaneStacking,
-    // Pane Actions
-    #[display("Split Pane {}", match _0 {
-        SplitDirection::Vertical => "Vertically",
-        SplitDirection::Horizontal => "Horizontally"
-    })]
-    SplitFocusedPane(SplitDirection),
-    #[display("Move Pane {_0}")]
-    MoveFocusedPane(MoveFocusDirection),
-    #[display("Close Focused Pane")]
-    CloseFocusedPane,
-    // General Actions
-    #[display("Focus {_0}")]
-    Focus(MoveFocusDirection),
-}
-
-impl<'a> From<&'a TTermAction> for KeyBindPanelType {
-    fn from(action: &'a TTermAction) -> Self {
-        match action {
-            TTermAction::NewTab(_)
-            | TTermAction::CloseFocusedTab
-            | TTermAction::SelectTab(_)
-            | TTermAction::FocusedTabToggleFloating
-            | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
-            TTermAction::SplitFocusedPane(_)
-            | TTermAction::CloseFocusedPane
-            | TTermAction::MoveFocusedPane(_) => Self::Pane,
-            TTermAction::Focus(_) => Self::General,
+impl Default for KeyBindsConfig {
+    fn default() -> Self {
+        Self {
+            actions: TTermAction::default_keybinds(),
         }
     }
+}
+
+actions! {
+    Tab: [
+        #[display("New Tab")]
+        New(Option<TabConfig>) [ @[Ctrl+Shift] + "T" => (None) ],
+        #[display("Close Tab")]
+        CloseFocused           [ @[Ctrl+Shift] + "W" ],
+        #[display("Select Tab {_0}")]
+        Select(usize)          [
+            @[Ctrl+Shift] + "1" => (0),
+            @[Ctrl+Shift] + "2" => (1),
+            @[Ctrl+Shift] + "3" => (2),
+            @[Ctrl+Shift] + "4" => (3),
+            @[Ctrl+Shift] + "5" => (4),
+            @[Ctrl+Shift] + "6" => (5),
+            @[Ctrl+Shift] + "7" => (6),
+            @[Ctrl+Shift] + "8" => (7),
+            @[Ctrl+Shift] + "9" => (8),
+        ],
+        #[display("Toggle Floating Panes")]
+        FocusedToggleFloating [ @[Ctrl+Shift] + "F" ],
+        #[display("Toggle Pane stacking")]
+        FocusedTogglePaneStacking [ @[Ctrl+Shift] + "S" ],
+    ],
+    Pane: [
+        #[display("Split Pane {}", match _0 {
+            SplitDirection::Vertical => "Vertically",
+            SplitDirection::Horizontal => "Horizontally"
+        })]
+        SplitFocused(SplitDirection) [
+            @[Alt] + "V" => (SplitDirection::Vertical),
+            @[Alt] + "H" => (SplitDirection::Horizontal),
+        ],
+        #[display("Close Focused Pane")]
+        CloseFocused [ @[Alt] + "W" ],
+        #[display("Move Pane {_0}")]
+        MoveFocused(MoveFocusDirection) [
+            @[Alt+Shift] + @ArrowLeft => (MoveFocusDirection::Left),
+            @[Alt+Shift] + @ArrowRight => (MoveFocusDirection::Right),
+            @[Alt+Shift] + @ArrowUp => (MoveFocusDirection::Up),
+            @[Alt+Shift] + @ArrowDown => (MoveFocusDirection::Down),
+        ]
+    ],
+    General: [
+        #[display("Focus {_0}")]
+        Focus(MoveFocusDirection) [
+            @[Alt] + @ArrowLeft => (MoveFocusDirection::Left),
+            @[Alt] + @ArrowRight => (MoveFocusDirection::Right),
+            @[Alt] + @ArrowUp => (MoveFocusDirection::Up),
+            @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
+        ]
+    ]
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -154,39 +109,25 @@ impl From<MoveFocusDirection> for pane_grid::Edge {
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]
 #[display(
     "{}{key}",
-    match modifiers {
-        Some(modifiers) => {
-            format!(
-                "{}+",
-                modifiers
-                    .iter()
-                    .map(|m| m.to_string())
-                    .collect::<Vec<_>>()
-                    .join("+")
-            )
-        }
-        None => "".into(),
-    }
+    format!(
+        "{}+",
+        modifiers
+            .iter()
+            .map(|m| m.to_string())
+            .collect::<Vec<_>>()
+            .join("+")
+    )
 )]
 pub struct KeyBind {
     pub key: Key,
-    pub modifiers: Option<Vec<Modifier>>,
+    pub modifiers: Vec<Modifier>,
 }
 
 impl KeyBind {
-    pub fn new(key: impl Into<Key>) -> Self {
+    pub fn new(key: impl Into<Key>, mods: impl IntoIterator<Item = Modifier>) -> Self {
         Self {
             key: key.into(),
-            modifiers: None,
-        }
-    }
-
-    pub fn with_modifiers(self, mods: impl IntoIterator<Item = Modifier>) -> Self {
-        let Self { key, .. } = self;
-
-        Self {
-            key,
-            modifiers: Some(mods.into_iter().collect()),
+            modifiers: mods.into_iter().collect(),
         }
     }
 }
@@ -208,7 +149,7 @@ impl<'de> Visitor<'de> for KeyBindVisitor {
     fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             fmt,
-            "A [(<MOD>+)+]<KEY> atring (Ctrl+Shift+N or P or Alt+P as examples)"
+            "A (<MOD>+)+<KEY> atring (Ctrl+Shift+N or Alt+P as examples)"
         )
     }
 
@@ -219,8 +160,7 @@ impl<'de> Visitor<'de> for KeyBindVisitor {
         let modifiers = Modifier::parser()
             .separated_by(just('+'))
             .collect::<Vec<_>>()
-            .then_ignore(just('+'))
-            .or_not();
+            .then_ignore(just('+'));
         let key = Key::parser();
 
         let res = modifiers

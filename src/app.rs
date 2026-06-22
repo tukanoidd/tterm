@@ -2,7 +2,7 @@ pub mod components;
 
 use std::{collections::HashMap, fmt::Display};
 
-use derive_more::{Display, From};
+use derive_more::From;
 use iced::{
     Length,
     alignment::Horizontal,
@@ -11,7 +11,6 @@ use iced::{
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
-use strum::VariantArray;
 use uuid::Uuid;
 
 use crate::{
@@ -19,7 +18,10 @@ use crate::{
     app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
     config::{
         Config,
-        keybinds::{KeyBind, Modifier, MoveFocusDirection, TTermAction},
+        keybinds::{
+            KeyBind, KeyBindPanelType, Modifier, MoveFocusDirection, TTermAction,
+            TTermGeneralAction, TTermPaneAction, TTermTabAction,
+        },
         presets::PresetConfig,
     },
     multiplex::{
@@ -158,7 +160,7 @@ impl App {
                     Some(PresetConfig { tabs, .. }) => tabs
                         .iter()
                         .map(|config| {
-                            AppTask::done(TTermAction::NewTab(Some(config.clone())).into())
+                            AppTask::done(TTermTabAction::New(Some(config.clone())).into())
                         })
                         .collect(),
                     None => vec![],
@@ -174,7 +176,7 @@ impl App {
                 };
 
                 return match new_tab_tasks.is_empty() {
-                    true => AppTask::done(TTermAction::NewTab(None).into()),
+                    true => AppTask::done(TTermTabAction::New(None).into()),
                     false => AppTask::batch(new_tab_tasks),
                 };
             }
@@ -199,7 +201,7 @@ impl App {
                 }
 
                 return AppTask::done(
-                    TTermAction::SelectTab(tab.saturating_sub(1.clamp(0, tabs.len()))).into(),
+                    TTermTabAction::Select(tab.saturating_sub(1.clamp(0, tabs.len()))).into(),
                 );
             }
             AppMsg::TabResetFloating(id) => {
@@ -210,7 +212,7 @@ impl App {
 
                 tab.panes.remove(&TabPanesType::Floating);
 
-                return AppTask::done(TTermAction::FocusedTabToggleFloating.into());
+                return AppTask::done(TTermTabAction::FocusedToggleFloating.into());
             }
             AppMsg::FocusPane(id) => {
                 let (tabs, current_tab) = get_main_state![tabs, current_tab];
@@ -241,123 +243,129 @@ impl App {
                 let (tabs, current_tab, config) = get_main_state![tabs, current_tab, config];
 
                 match tterm_action {
-                    TTermAction::NewTab(tab_config) => {
-                        let (tab, task) = match Tab::builder()
-                            .terminal_config(&config.terminal)
-                            .keybinds_config(&config.keybinds)
-                            .maybe_tab_config(tab_config)
-                            .build()
-                        {
-                            Ok(tab) => tab,
-                            Err(err) => {
-                                return AppTask::done(AppMsg::Error {
-                                    message: err.to_string(),
-                                    critical: true,
-                                });
+                    TTermAction::Tab(act) => match act {
+                        TTermTabAction::New(tab_config) => {
+                            let (tab, task) = match Tab::builder()
+                                .terminal_config(&config.terminal)
+                                .keybinds_config(&config.keybinds)
+                                .maybe_tab_config(tab_config)
+                                .build()
+                            {
+                                Ok(tab) => tab,
+                                Err(err) => {
+                                    return AppTask::done(AppMsg::Error {
+                                        message: err.to_string(),
+                                        critical: true,
+                                    });
+                                }
+                            };
+
+                            tabs.push(tab);
+
+                            return AppTask::batch([
+                                AppTask::done(TTermTabAction::Select(tabs.len() - 1).into()),
+                                task,
+                            ]);
+                        }
+                        TTermTabAction::CloseFocused => {
+                            return AppTask::done(AppMsg::CloseTab(tabs[*current_tab].id));
+                        }
+                        TTermTabAction::Select(index) => {
+                            let index = index.clamp(0, tabs.len().saturating_sub(1));
+
+                            *current_tab = index;
+
+                            if !tabs.is_empty() {
+                                let current_tab = &mut tabs[*current_tab];
+                                let Some((_, pane_state)) = current_tab
+                                    .panes
+                                    .get_mut(&current_tab.current_panes_type)
+                                    .and_then(|panes| panes.focused_pane_mut())
+                                else {
+                                    return AppTask::none();
+                                };
+
+                                return AppTask::done(AppMsg::FocusPane(pane_state.id));
                             }
-                        };
-
-                        tabs.push(tab);
-
-                        return AppTask::batch([
-                            AppTask::done(TTermAction::SelectTab(tabs.len() - 1).into()),
-                            task,
-                        ]);
-                    }
-                    TTermAction::CloseFocusedTab => {
-                        return AppTask::done(AppMsg::CloseTab(tabs[*current_tab].id));
-                    }
-                    TTermAction::SelectTab(index) => {
-                        let index = index.clamp(0, tabs.len().saturating_sub(1));
-
-                        *current_tab = index;
-
-                        if !tabs.is_empty() {
-                            let current_tab = &mut tabs[*current_tab];
-                            let Some((_, pane_state)) = current_tab
-                                .panes
-                                .get_mut(&current_tab.current_panes_type)
-                                .and_then(|panes| panes.focused_pane_mut())
-                            else {
+                        }
+                        TTermTabAction::FocusedToggleFloating => {
+                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
                                 return AppTask::none();
                             };
 
-                            return AppTask::done(AppMsg::FocusPane(pane_state.id));
+                            return current_tab.toggle_floating(&config.terminal, &config.keybinds);
                         }
-                    }
-                    TTermAction::FocusedTabToggleFloating => {
-                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
+                        TTermTabAction::FocusedTogglePaneStacking => {
+                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                                return AppTask::none();
+                            };
 
-                        return current_tab.toggle_floating(&config.terminal, &config.keybinds);
-                    }
-                    TTermAction::FocusedTabTogglePaneStacking => {
-                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
-
-                        current_tab.toggle_stacking();
-                    }
-
-                    TTermAction::SplitFocusedPane(direction) => {
-                        let Some(current_tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
-
-                        return match current_tab.split_focused(
-                            direction,
-                            &config.terminal,
-                            &config.keybinds,
-                        ) {
-                            Ok(task) => task,
-                            Err(err) => AppTask::done(AppMsg::Error {
-                                message: err.to_string(),
-                                critical: false,
-                            }),
-                        };
-                    }
-                    TTermAction::CloseFocusedPane => {
-                        let Some(tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
-
-                        return tab.close_focused_pane();
-                    }
-                    TTermAction::MoveFocusedPane(direction) => {
-                        let Some(tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
-
-                        return tab.move_focused_pane(direction);
-                    }
-
-                    TTermAction::Focus(direction) => {
-                        let Some(tab) = tabs.get_mut(*current_tab) else {
-                            return AppTask::none();
-                        };
-
-                        match tab.focus_pane_directional(direction) {
-                            Some(task) => return task,
-                            None => match direction {
-                                MoveFocusDirection::Left => {
-                                    if *current_tab != 0 {
-                                        return AppTask::done(
-                                            TTermAction::SelectTab(*current_tab - 1).into(),
-                                        );
-                                    }
-                                }
-                                MoveFocusDirection::Right => {
-                                    if *current_tab < tabs.len() - 1 {
-                                        return AppTask::done(
-                                            TTermAction::SelectTab(*current_tab + 1).into(),
-                                        );
-                                    }
-                                }
-                                MoveFocusDirection::Up | MoveFocusDirection::Down => {}
-                            },
+                            current_tab.toggle_stacking();
                         }
-                    }
+                    },
+                    TTermAction::Pane(act) => match act {
+                        TTermPaneAction::SplitFocused(direction) => {
+                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                                return AppTask::none();
+                            };
+
+                            return match current_tab.split_focused(
+                                direction,
+                                &config.terminal,
+                                &config.keybinds,
+                            ) {
+                                Ok(task) => task,
+                                Err(err) => AppTask::done(AppMsg::Error {
+                                    message: err.to_string(),
+                                    critical: false,
+                                }),
+                            };
+                        }
+                        TTermPaneAction::CloseFocused => {
+                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                                return AppTask::none();
+                            };
+
+                            tracing::debug!("Close focused pane");
+
+                            return tab.close_focused_pane();
+                        }
+                        TTermPaneAction::MoveFocused(direction) => {
+                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                                return AppTask::none();
+                            };
+
+                            return tab.move_focused_pane(direction);
+                        }
+                    },
+                    TTermAction::General(act) => match act {
+                        TTermGeneralAction::Focus(direction) => {
+                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                                return AppTask::none();
+                            };
+
+                            match tab.focus_pane_directional(direction) {
+                                Some(task) => return task,
+                                None => match direction {
+                                    MoveFocusDirection::Left => {
+                                        if *current_tab != 0 {
+                                            return AppTask::done(
+                                                TTermTabAction::Select(*current_tab - 1).into(),
+                                            );
+                                        }
+                                    }
+                                    MoveFocusDirection::Right => {
+                                        if *current_tab < tabs.len() - 1 {
+                                            return AppTask::done(
+                                                TTermTabAction::Select(*current_tab + 1).into(),
+                                            );
+                                        }
+                                    }
+                                    MoveFocusDirection::Up | MoveFocusDirection::Down => {}
+                                },
+                            }
+                        }
+                    },
                 }
             }
 
@@ -381,7 +389,10 @@ impl App {
                         .keybinds
                         .actions
                         .iter()
-                        .map(|(k, a)| (k.clone(), a.clone()))
+                        .flat_map(|(panel_ty, a)| {
+                            a.iter()
+                                .map(move |(k, a)| (*panel_ty, k.clone(), a.clone()))
+                        })
                         .collect::<Vec<_>>(),
                     config.general.reactive_panels,
                 ))
@@ -400,6 +411,7 @@ impl App {
                                 .then(|| {
                                     binds.into_iter().find_map(
                                         |(
+                                            _,
                                             KeyBind {
                                                 key: bind_key,
                                                 modifiers: bind_modifiers,
@@ -407,22 +419,14 @@ impl App {
                                             action,
                                         )| {
                                             let iced_key: iced::keyboard::Key = bind_key.into();
-                                            let iced_modifiers = bind_modifiers
-                                                .map(|bmods| {
-                                                    bmods.into_iter().fold(
-                                                        Modifiers::empty(),
-                                                        |mods, mod_| match mod_ {
-                                                            Modifier::Ctrl => {
-                                                                mods | Modifiers::CTRL
-                                                            }
-                                                            Modifier::Shift => {
-                                                                mods | Modifiers::SHIFT
-                                                            }
-                                                            Modifier::Alt => mods | Modifiers::ALT,
-                                                        },
-                                                    )
-                                                })
-                                                .unwrap_or(Modifiers::empty());
+                                            let iced_modifiers = bind_modifiers.into_iter().fold(
+                                                Modifiers::empty(),
+                                                |mods, mod_| match mod_ {
+                                                    Modifier::Ctrl => mods | Modifiers::CTRL,
+                                                    Modifier::Shift => mods | Modifiers::SHIFT,
+                                                    Modifier::Alt => mods | Modifiers::ALT,
+                                                },
+                                            );
 
                                             (iced_key == key && iced_modifiers == modifiers)
                                                 .then_some(AppMsg::Action(action))
@@ -459,16 +463,11 @@ impl App {
 
                                 binds
                                     .into_iter()
-                                    .map(|(b, a)| (b, KeyBindPanelType::from(a)))
+                                    .map(|(t, b, _)| (b, t))
                                     .unique()
                                     .map(|(b, ty)| {
-                                        let open = b
-                                            .modifiers
-                                            .as_ref()
-                                            .map(|mods| {
-                                                mods.iter().any(|m| changed_mods.contains(m))
-                                            })
-                                            .unwrap_or_default();
+                                        let open =
+                                            b.modifiers.iter().any(|m| changed_mods.contains(m));
 
                                         AppMsg::PanelToggle {
                                             ty,
@@ -517,35 +516,6 @@ pub enum AppState {
     },
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, VariantArray)]
-pub enum KeyBindPanelType {
-    Tab,
-    Pane,
-    General,
-}
-
-impl KeyBindPanelType {
-    pub fn title(&self) -> String {
-        format!("{self} Actions")
-    }
-}
-
-impl From<TTermAction> for KeyBindPanelType {
-    fn from(value: TTermAction) -> Self {
-        match value {
-            TTermAction::NewTab(_)
-            | TTermAction::CloseFocusedTab
-            | TTermAction::SelectTab(_)
-            | TTermAction::FocusedTabToggleFloating
-            | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
-            TTermAction::SplitFocusedPane(_)
-            | TTermAction::CloseFocusedPane
-            | TTermAction::MoveFocusedPane(_) => Self::Pane,
-            TTermAction::Focus(_) => Self::General,
-        }
-    }
-}
-
 #[derive(Debug, Clone, From)]
 pub enum AppMsg {
     #[from(skip)]
@@ -574,6 +544,7 @@ pub enum AppMsg {
         force: Option<bool>,
     },
 
+    #[from(skip)]
     Action(TTermAction),
 
     IcedEvent(iced::Event),

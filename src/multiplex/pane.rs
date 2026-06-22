@@ -87,7 +87,8 @@ impl PaneState {
         terminal.handle(iced_term::Command::AddBindings(
             keybinds_config
                 .actions
-                .iter()
+                .values()
+                .flat_map(|a| a.iter())
                 .map(|(KeyBind { key, modifiers }, _)| {
                     (
                         iced_term::bindings::Binding {
@@ -99,18 +100,13 @@ impl PaneState {
                                     iced_term::bindings::InputKind::Char(char.clone())
                                 }
                             },
-                            modifiers: modifiers
-                                .as_ref()
-                                .map(|mods| {
-                                    mods.iter().fold(Modifiers::empty(), |ms, m| {
-                                        ms | match m {
-                                            Modifier::Ctrl => Modifiers::CTRL,
-                                            Modifier::Shift => Modifiers::SHIFT,
-                                            Modifier::Alt => Modifiers::ALT,
-                                        }
-                                    })
-                                })
-                                .unwrap_or_else(Modifiers::empty),
+                            modifiers: modifiers.iter().fold(Modifiers::empty(), |ms, m| {
+                                ms | match m {
+                                    Modifier::Ctrl => Modifiers::CTRL,
+                                    Modifier::Shift => Modifiers::SHIFT,
+                                    Modifier::Alt => Modifiers::ALT,
+                                }
+                            }),
                             terminal_mode_include: TermMode::default(),
                             terminal_mode_exclude: TermMode::default(),
                         },

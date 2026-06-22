@@ -9,8 +9,8 @@ use itertools::Itertools;
 use strum::VariantArray;
 
 use crate::{
-    app::{AppElement, AppMsg, KeyBindPanelType},
-    config::keybinds::{KeyBind, KeyBindsConfig, TTermAction},
+    app::{AppElement, AppMsg},
+    config::keybinds::{KeyBind, KeyBindPanelType, KeyBindsConfig, TTermAction},
 };
 
 pub struct KeyBindBar<'a> {
@@ -47,12 +47,14 @@ impl<'a> KeyBindBar<'a> {
 
     fn panel(
         ty: KeyBindPanelType,
-        binds: impl IntoIterator<Item = (&'a KeyBind, &'a TTermAction)>,
+        binds: &'a HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>>,
         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
         let binds = binds
-            .into_iter()
-            .filter(|(_, a)| KeyBindPanelType::from(*a) == ty);
+            .get(&ty)
+            .iter()
+            .flat_map(|b| b.iter())
+            .sorted_by_key(|(_, action)| action.to_string());
         let table = table(
             [
                 table::column(text("Binding"), |(bind, _): (&KeyBind, &TTermAction)| {
@@ -62,9 +64,7 @@ impl<'a> KeyBindBar<'a> {
                     text(action.to_string())
                 }),
             ],
-            binds
-                .into_iter()
-                .sorted_by_key(|(_, action)| action.to_string()),
+            binds,
         )
         .width(350);
 
