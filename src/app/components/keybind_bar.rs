@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use iced::{
-    Padding,
-    widget::{button, container, row, table, text},
+    Alignment, Length, Padding,
+    widget::{button, center, container, row, table, text},
 };
 use iced_aw::DropDown;
 use itertools::Itertools;
@@ -35,14 +35,27 @@ impl<'a> KeyBindBar<'a> {
             keybind_panel_expanded,
         } = self;
 
+        const PADDING: u32 = 5;
+        const SPACING: u32 = 5;
+
         let panels = <KeyBindPanelType as VariantArray>::VARIANTS
             .iter()
-            .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded));
+            .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded))
+            .collect::<Vec<_>>();
 
-        row(panels)
-            .padding(Padding::default().bottom(5).left(5).right(5))
-            .wrap()
-            .into()
+        center(
+            row(panels)
+                .padding(
+                    Padding::default()
+                        .bottom(PADDING)
+                        .left(PADDING)
+                        .right(PADDING),
+                )
+                .spacing(SPACING)
+                .wrap(),
+        )
+        .height(Length::Shrink)
+        .into()
     }
 
     fn panel(
@@ -65,17 +78,19 @@ impl<'a> KeyBindBar<'a> {
                 }),
             ],
             binds,
-        )
-        .width(350);
+        );
+
+        const WIDTH: f32 = 400.0;
 
         DropDown::new(
-            button(text(ty.title()))
+            button(text(ty.title()).align_x(Alignment::Center))
                 .style(button::subtle)
-                .width(350)
-                .on_press(AppMsg::PanelToggle { ty, force: None }),
-            container(table).style(container::bordered_box),
+                .on_press(AppMsg::PanelToggle { ty, force: None })
+                .width(Length::Fixed(WIDTH)),
+            center(table).padding(5).style(container::bordered_box),
             keybind_panel_expanded.get(&ty).copied().unwrap_or_default(),
         )
+        .width(Length::Fixed(WIDTH))
         .on_dismiss(AppMsg::PanelToggle {
             ty,
             force: Some(false),
