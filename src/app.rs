@@ -19,7 +19,7 @@ use crate::{
     app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
     config::{
         Config,
-        keybinds::{FocusDirection, KeyBind, Modifier, TTermAction},
+        keybinds::{KeyBind, Modifier, MoveFocusDirection, TTermAction},
         presets::PresetConfig,
     },
     multiplex::{
@@ -62,7 +62,7 @@ impl App {
 
     pub fn view(&self) -> AppElement<'_> {
         match &self.state {
-            AppState::LoadingConfig { .. } => center(
+            AppState::LoadingConfig => center(
                 column![
                     Spinner::new().width(20.0).height(20),
                     text("Loading config...")
@@ -324,6 +324,13 @@ impl App {
 
                         return tab.close_focused_pane();
                     }
+                    TTermAction::MoveFocusedPane(direction) => {
+                        let Some(tab) = tabs.get_mut(*current_tab) else {
+                            return AppTask::none();
+                        };
+
+                        return tab.move_focused_pane(direction);
+                    }
 
                     TTermAction::Focus(direction) => {
                         let Some(tab) = tabs.get_mut(*current_tab) else {
@@ -333,21 +340,21 @@ impl App {
                         match tab.focus_pane_directional(direction) {
                             Some(task) => return task,
                             None => match direction {
-                                FocusDirection::Left => {
+                                MoveFocusDirection::Left => {
                                     if *current_tab != 0 {
                                         return AppTask::done(
                                             TTermAction::SelectTab(*current_tab - 1).into(),
                                         );
                                     }
                                 }
-                                FocusDirection::Right => {
+                                MoveFocusDirection::Right => {
                                     if *current_tab < tabs.len() - 1 {
                                         return AppTask::done(
                                             TTermAction::SelectTab(*current_tab + 1).into(),
                                         );
                                     }
                                 }
-                                FocusDirection::Up | FocusDirection::Down => {}
+                                MoveFocusDirection::Up | MoveFocusDirection::Down => {}
                             },
                         }
                     }
@@ -531,7 +538,9 @@ impl From<TTermAction> for KeyBindPanelType {
             | TTermAction::SelectTab(_)
             | TTermAction::FocusedTabToggleFloating
             | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
-            TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
+            TTermAction::SplitFocusedPane(_)
+            | TTermAction::CloseFocusedPane
+            | TTermAction::MoveFocusedPane(_) => Self::Pane,
             TTermAction::Focus(_) => Self::General,
         }
     }

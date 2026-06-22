@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chumsky::prelude::*;
 use derive_more::Display;
+use iced::widget::pane_grid;
 use serde::{Deserialize, Serialize, de::Visitor};
 
 use crate::{
@@ -64,11 +65,15 @@ default_keybinds! {
         @[Alt] + ["V"] => SplitFocusedPane(SplitDirection::Vertical),
         @[Alt] + ["H"] => SplitFocusedPane(SplitDirection::Horizontal),
         @[Alt] + ["W"] => CloseFocusedPane,
+        @[Alt Shift ] + @ArrowLeft => MoveFocusedPane(MoveFocusDirection::Left),
+        @[Alt Shift ] + @ArrowRight => MoveFocusedPane(MoveFocusDirection::Right),
+        @[Alt Shift ] + @ArrowUp => MoveFocusedPane(MoveFocusDirection::Up),
+        @[Alt Shift ] + @ArrowDown => MoveFocusedPane(MoveFocusDirection::Down),
 
-        @[Alt] + @ArrowLeft => Focus(FocusDirection::Left),
-        @[Alt] + @ArrowRight => Focus(FocusDirection::Right),
-        @[Alt] + @ArrowUp => Focus(FocusDirection::Up),
-        @[Alt] + @ArrowDown => Focus(FocusDirection::Down),
+        @[Alt] + @ArrowLeft => Focus(MoveFocusDirection::Left),
+        @[Alt] + @ArrowRight => Focus(MoveFocusDirection::Right),
+        @[Alt] + @ArrowUp => Focus(MoveFocusDirection::Up),
+        @[Alt] + @ArrowDown => Focus(MoveFocusDirection::Down),
     ]
 }
 
@@ -91,11 +96,13 @@ pub enum TTermAction {
         SplitDirection::Horizontal => "Horizontally"
     })]
     SplitFocusedPane(SplitDirection),
+    #[display("Move Pane {_0}")]
+    MoveFocusedPane(MoveFocusDirection),
     #[display("Close Focused Pane")]
     CloseFocusedPane,
     // General Actions
     #[display("Focus {_0}")]
-    Focus(FocusDirection),
+    Focus(MoveFocusDirection),
 }
 
 impl<'a> From<&'a TTermAction> for KeyBindPanelType {
@@ -106,18 +113,42 @@ impl<'a> From<&'a TTermAction> for KeyBindPanelType {
             | TTermAction::SelectTab(_)
             | TTermAction::FocusedTabToggleFloating
             | TTermAction::FocusedTabTogglePaneStacking => Self::Tab,
-            TTermAction::SplitFocusedPane(_) | TTermAction::CloseFocusedPane => Self::Pane,
+            TTermAction::SplitFocusedPane(_)
+            | TTermAction::CloseFocusedPane
+            | TTermAction::MoveFocusedPane(_) => Self::Pane,
             TTermAction::Focus(_) => Self::General,
         }
     }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum FocusDirection {
+pub enum MoveFocusDirection {
     Up,
     Down,
     Left,
     Right,
+}
+
+impl From<MoveFocusDirection> for pane_grid::Direction {
+    fn from(value: MoveFocusDirection) -> Self {
+        match value {
+            MoveFocusDirection::Up => pane_grid::Direction::Up,
+            MoveFocusDirection::Down => pane_grid::Direction::Down,
+            MoveFocusDirection::Left => pane_grid::Direction::Left,
+            MoveFocusDirection::Right => pane_grid::Direction::Right,
+        }
+    }
+}
+
+impl From<MoveFocusDirection> for pane_grid::Edge {
+    fn from(value: MoveFocusDirection) -> Self {
+        match value {
+            MoveFocusDirection::Up => pane_grid::Edge::Top,
+            MoveFocusDirection::Down => pane_grid::Edge::Bottom,
+            MoveFocusDirection::Left => pane_grid::Edge::Left,
+            MoveFocusDirection::Right => pane_grid::Edge::Right,
+        }
+    }
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash)]

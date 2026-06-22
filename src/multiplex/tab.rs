@@ -17,7 +17,7 @@ use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::{
         common::SplitDirection,
-        keybinds::{FocusDirection, KeyBindsConfig},
+        keybinds::{KeyBindsConfig, MoveFocusDirection},
         presets::{PaneConfig, PaneSplitConfig, TabConfig},
         terminal::TerminalConfig,
     },
@@ -139,7 +139,7 @@ impl Tab {
         panes.split_focused(direction, terminal_config, keybinds_config)
     }
 
-    pub fn focus_pane_directional(&mut self, direction: FocusDirection) -> Option<AppTask> {
+    pub fn focus_pane_directional(&mut self, direction: MoveFocusDirection) -> Option<AppTask> {
         let panes = self.panes.get_mut(&self.current_panes_type)?;
         panes.focus_pane_directional(direction)
     }
@@ -170,6 +170,16 @@ impl Tab {
                     .into(),
                 )
             })
+            .unwrap_or_else(AppTask::none)
+    }
+
+    pub fn move_focused_pane(&mut self, direction: MoveFocusDirection) -> AppTask {
+        let Some(panes) = self.panes.get_mut(&self.current_panes_type) else {
+            return AppTask::none();
+        };
+
+        panes
+            .move_focused_pane(direction)
             .unwrap_or_else(AppTask::none)
     }
 
@@ -441,10 +451,13 @@ impl TabPanesState {
         Ok(AppTask::done(AppMsg::FocusPane(pane_id)))
     }
 
-    pub fn focus_pane_directional(&mut self, direction: FocusDirection) -> Option<AppTask> {
+    pub fn focus_pane_directional(&mut self, direction: MoveFocusDirection) -> Option<AppTask> {
         match self.stacking {
             true => {
-                if matches!(direction, FocusDirection::Left | FocusDirection::Right) {
+                if matches!(
+                    direction,
+                    MoveFocusDirection::Left | MoveFocusDirection::Right
+                ) {
                     return None;
                 }
 
@@ -460,11 +473,11 @@ impl TabPanesState {
                     .find_map(|(ind, (_, state))| (state.id == self.focused_pane).then_some(ind))?;
 
                 Some(match direction {
-                    FocusDirection::Up => match focused_ind > 0 {
+                    MoveFocusDirection::Up => match focused_ind > 0 {
                         true => AppTask::done(AppMsg::FocusPane(list[focused_ind - 1].1.id)),
                         false => AppTask::none(),
                     },
-                    FocusDirection::Down => match focused_ind < list.len() - 1 {
+                    MoveFocusDirection::Down => match focused_ind < list.len() - 1 {
                         true => AppTask::done(AppMsg::FocusPane(list[focused_ind + 1].1.id)),
                         false => AppTask::none(),
                     },
@@ -479,10 +492,10 @@ impl TabPanesState {
                     .adjacent(
                         *focused_pane,
                         match direction {
-                            FocusDirection::Up => pane_grid::Direction::Up,
-                            FocusDirection::Down => pane_grid::Direction::Down,
-                            FocusDirection::Left => pane_grid::Direction::Left,
-                            FocusDirection::Right => pane_grid::Direction::Right,
+                            MoveFocusDirection::Up => pane_grid::Direction::Up,
+                            MoveFocusDirection::Down => pane_grid::Direction::Down,
+                            MoveFocusDirection::Left => pane_grid::Direction::Left,
+                            MoveFocusDirection::Right => pane_grid::Direction::Right,
                         },
                     )
                     .and_then(|ap| {
@@ -524,6 +537,23 @@ impl TabPanesState {
         self.panes
             .get(neighbor)
             .map(|s| AppTask::done(AppMsg::FocusPane(s.id)))
+    }
+
+    pub fn move_focused_pane(&mut self, direction: MoveFocusDirection) -> Option<AppTask> {
+        let (focused, focused_state) = self.focused_pane()?;
+        let focused_pane = *focused;
+        let focused_id = focused_state.id;
+
+        match self.panes.adjacent(focused_pane, direction.into()) {
+            Some(adjacent) => {
+                self.panes.swap(focused_pane, adjacent);
+            }
+            None => {
+                self.panes.move_to_edge(focused_pane, direction.into());
+            }
+        }
+
+        Some(AppTask::done(AppMsg::FocusPane(focused_id)))
     }
 
     fn update_pane(
