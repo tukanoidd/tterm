@@ -79,17 +79,17 @@ impl<'a> KeyBindBar<'a> {
             .sorted_by_key(|(_, action)| action.to_string());
         let table = table(
             [
-                table::column(text("Binding"), |(bind, _): (&KeyBind, &TTermAction)| {
-                    text(bind.to_string())
-                }),
+                table::column(
+                    text("Binding").center(),
+                    |(bind, _): (&KeyBind, &TTermAction)| text(bind.to_string()).center(),
+                ),
                 table::column(text("Action"), |(_, action): (&KeyBind, &TTermAction)| {
-                    text(action.to_string())
+                    text(action.to_string()).center()
                 }),
             ],
             binds,
-        );
-
-        const WIDTH: f32 = 400.0;
+        )
+        .width(Length::Fill);
 
         let expanded = keybind_panel_expanded.get(&ty).copied().unwrap_or_default();
 
@@ -106,18 +106,18 @@ impl<'a> KeyBindBar<'a> {
                         .font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_BOLD_FONT)
                 ]
                 .align_y(Vertical::Center)
-                .spacing(6),
+                .spacing(6)
+                .padding(Padding::default().horizontal(150)),
             )
+            .width(Length::Shrink)
             .height(Length::Shrink),
         )
         .style(style::panel_button(expanded))
-        .on_press(AppMsg::PanelToggle { ty, force: None })
-        .width(Length::Fixed(WIDTH));
+        .on_press(AppMsg::PanelToggle { ty, force: None });
 
         let panel = center(table).padding(5).style(style::panel);
 
         DropDown::new(panel_button, panel, expanded)
-            .width(Length::Fixed(WIDTH))
             .on_dismiss(AppMsg::PanelToggle {
                 ty,
                 force: Some(false),
