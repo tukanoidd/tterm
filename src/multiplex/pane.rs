@@ -87,8 +87,7 @@ impl PaneState {
         terminal.handle(iced_term::Command::AddBindings(
             keybinds_config
                 .actions
-                .values()
-                .flat_map(|a| a.iter())
+                .iter()
                 .map(|(KeyBind { key, modifiers }, _)| {
                     (
                         iced_term::bindings::Binding {

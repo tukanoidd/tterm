@@ -20,7 +20,10 @@ pub fn actions(input: TokenStream) -> TokenStream {
             })
             .collect::<Vec<_>>();
         let keybind_panel_type_enum = {
-            let variants = types.iter().map(|ActionType { name, .. }| name);
+            let variants = types
+                .iter()
+                .map(|ActionType { name, .. }| name)
+                .collect::<Vec<_>>();
             let title_match_arms = types.iter().map(|ActionType { name, .. }| quote!(Self::#name => format!("{} Actions", stringify!(#name))));
 
             quote! {
@@ -40,6 +43,14 @@ pub fn actions(input: TokenStream) -> TokenStream {
                     pub fn title(&self) -> String {
                         match self {
                             #(#title_match_arms),*
+                        }
+                    }
+                }
+
+                impl<'a> From<&'a TTermAction> for KeyBindPanelType {
+                    fn from(value: &'a TTermAction) -> Self {
+                        match value {
+                            #(TTermAction::#variants(_) => Self::#variants),*
                         }
                     }
                 }

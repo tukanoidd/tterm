@@ -60,13 +60,19 @@ impl<'a> KeyBindBar<'a> {
 
     fn panel(
         ty: KeyBindPanelType,
-        binds: &'a HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>>,
+        binds: &'a HashMap<KeyBind, TTermAction>,
         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
         let binds = binds
-            .get(&ty)
             .iter()
-            .flat_map(|b| b.iter())
+            .filter(|(_, action)| {
+                matches!(
+                    (action, ty),
+                    (TTermAction::Tab(_), KeyBindPanelType::Tab)
+                        | (TTermAction::Pane(_), KeyBindPanelType::Pane)
+                        | (TTermAction::General(_), KeyBindPanelType::General),
+                )
+            })
             .sorted_by_key(|(_, action)| action.to_string());
         let table = table(
             [

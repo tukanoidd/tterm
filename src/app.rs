@@ -389,9 +389,12 @@ impl App {
                         .keybinds
                         .actions
                         .iter()
-                        .flat_map(|(panel_ty, a)| {
-                            a.iter()
-                                .map(move |(k, a)| (*panel_ty, k.clone(), a.clone()))
+                        .map(|(keybind, action)| {
+                            (
+                                KeyBindPanelType::from(action),
+                                keybind.clone(),
+                                action.clone(),
+                            )
                         })
                         .collect::<Vec<_>>(),
                     config.general.reactive_panels,

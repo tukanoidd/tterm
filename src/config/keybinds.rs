@@ -12,13 +12,16 @@ use crate::config::{common::SplitDirection, presets::TabConfig};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeyBindsConfig {
-    pub actions: HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>>,
+    pub actions: HashMap<KeyBind, TTermAction>,
 }
 
 impl Default for KeyBindsConfig {
     fn default() -> Self {
         Self {
-            actions: TTermAction::default_keybinds(),
+            actions: TTermAction::default_keybinds()
+                .into_values()
+                .flat_map(|map| map.into_iter())
+                .collect(),
         }
     }
 }
