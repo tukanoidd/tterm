@@ -229,6 +229,12 @@ impl Tab {
     pub fn pane(&self, id: Uuid) -> Option<(&pane_grid::Pane, &PaneState)> {
         self.panes.iter().find_map(|(_, p)| p.pane(id))
     }
+
+    pub fn focused_pane(&self) -> Option<(&pane_grid::Pane, &PaneState)> {
+        self.panes
+            .get(&self.current_panes_type)
+            .and_then(|p| p.focused_pane())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

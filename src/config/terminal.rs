@@ -11,6 +11,8 @@ pub struct TerminalConfig {
     pub font: TerminalFontConfig,
     pub theme: TerminalThemeConfig,
     pub shell: Option<String>,
+    #[default = 3.0]
+    pub scroll_acceleration: f32,
 }
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]

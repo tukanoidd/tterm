@@ -48,7 +48,9 @@ impl PaneState {
 
         TERM_ID.store(term_id + 1, Ordering::SeqCst);
 
-        let TerminalConfig { font, theme, shell } = terminal_config;
+        let TerminalConfig {
+            font, theme, shell, ..
+        } = terminal_config;
 
         let env = std::env::vars().collect::<HashMap<_, _>>();
 

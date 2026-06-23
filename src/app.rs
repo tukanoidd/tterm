@@ -7,6 +7,7 @@ use iced::{
     Length,
     alignment::Horizontal,
     keyboard::{self, Modifiers},
+    mouse,
     widget::{self, center, column, rule, text, text_editor},
 };
 use iced_aw::Spinner;
@@ -26,7 +27,7 @@ use crate::{
         presets::PresetConfig,
     },
     multiplex::{
-        pane::IdPaneMessage,
+        pane::{IdPaneMessage, PaneMessage},
         tab::{Tab, TabPanesType},
     },
 };
@@ -441,6 +442,45 @@ impl App {
                     if *rename_tab_mode {
                         *rename_tab_mode = false;
                         return AppTask::done(TTermTabAction::Select(*current_tab).into());
+                    }
+                }
+                iced::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
+                    let (tabs, current_tab, rename_tab_mode, config) =
+                        get_main_state![tabs, current_tab, rename_tab_mode, config];
+
+                    if *rename_tab_mode {
+                        return AppTask::none();
+                    }
+
+                    let Some(current_tab) = tabs.get(*current_tab) else {
+                        return AppTask::none();
+                    };
+
+                    let Some((_, focused_pane)) = current_tab.focused_pane() else {
+                        return AppTask::none();
+                    };
+
+                    let scroll_delta = match delta {
+                        mouse::ScrollDelta::Lines { y, .. } => {
+                            (y * config.terminal.scroll_acceleration) as i32
+                        }
+                        mouse::ScrollDelta::Pixels { y, .. } => {
+                            (y * config.terminal.scroll_acceleration / config.terminal.font.size)
+                                as i32
+                        }
+                    };
+
+                    if scroll_delta != 0 {
+                        return AppTask::done(
+                            IdPaneMessage {
+                                id: focused_pane.id,
+                                msg: PaneMessage::TerminalMsg(iced_term::Event::BackendCall(
+                                    focused_pane.term_id,
+                                    iced_term::BackendCommand::Scroll(scroll_delta),
+                                )),
+                            }
+                            .into(),
+                        );
                     }
                 }
                 _ => {
