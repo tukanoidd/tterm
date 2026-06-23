@@ -6,7 +6,7 @@ use derive_more::From;
 use iced::{
     Length,
     alignment::Horizontal,
-    keyboard::Modifiers,
+    keyboard::{self, Modifiers},
     widget::{self, center, column, rule, text, text_editor},
 };
 use iced_aw::Spinner;
@@ -426,9 +426,24 @@ impl App {
                 }
             }
 
-            AppMsg::IcedEvent(_event) => {
-                // TODO
-            }
+            AppMsg::IcedEvent(event) => match event {
+                iced::Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                    repeat: false,
+                    ..
+                }) => {
+                    let (rename_tab_mode, current_tab) =
+                        get_main_state!(rename_tab_mode, current_tab);
+
+                    if *rename_tab_mode {
+                        *rename_tab_mode = false;
+                        return AppTask::done(TTermTabAction::Select(*current_tab).into());
+                    }
+                }
+                _ => {
+                    // TODO
+                }
+            },
         }
 
         AppTask::none()
@@ -458,7 +473,7 @@ impl App {
                 ))
                 .map(|((binds, reactive_panels), event)| match event {
                     iced::Event::Keyboard(keyboard_event) => match keyboard_event {
-                        iced::keyboard::Event::KeyPressed {
+                        keyboard::Event::KeyPressed {
                             key,
                             modified_key,
                             physical_key,
@@ -509,8 +524,7 @@ impl App {
                                     ))
                                 }),
                         ],
-                        iced::keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels
-                        {
+                        keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
                             true => {
                                 let changed_mods = modifiers
                                     .iter()

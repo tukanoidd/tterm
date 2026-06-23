@@ -64,7 +64,7 @@ fn main() -> Result<()> {
             position: window::Position::Centered,
             ..Default::default()
         });
-    let app = fonts::load(app);
+    let app = fonts::load(app).default_font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_FONT);
 
     app.run()?;
 
