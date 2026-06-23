@@ -397,20 +397,26 @@ impl App {
                                 Some(task) => return task,
                                 None => match direction {
                                     MoveFocusDirection::Left => {
-                                        if *current_tab != 0 {
-                                            return AppTask::done(
-                                                TTermTabAction::Select(*current_tab - 1).into(),
-                                            );
-                                        }
+                                        return AppTask::done(
+                                            TTermTabAction::Select(match current_tab {
+                                                0 => tabs.len() - 1,
+                                                _ => *current_tab - 1,
+                                            })
+                                            .into(),
+                                        );
                                     }
                                     MoveFocusDirection::Right => {
-                                        if *current_tab < tabs.len() - 1 {
-                                            return AppTask::done(
-                                                TTermTabAction::Select(*current_tab + 1).into(),
-                                            );
-                                        }
+                                        return AppTask::done(
+                                            TTermTabAction::Select(
+                                                match *current_tab >= tabs.len() - 1 {
+                                                    true => 0,
+                                                    false => *current_tab + 1,
+                                                },
+                                            )
+                                            .into(),
+                                        );
                                     }
-                                    MoveFocusDirection::Up | MoveFocusDirection::Down => {}
+                                    _ => {}
                                 },
                             }
                         }
