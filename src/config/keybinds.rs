@@ -48,6 +48,7 @@ actions! {
         FocusedToggleFloating [ @[Ctrl+Shift] + "F" ],
         #[display("Toggle Pane stacking")]
         FocusedTogglePaneStacking [ @[Ctrl+Shift] + "S" ],
+        ToggleRename [ @[Ctrl+Shift] + "R"  ]
     ],
     Pane: [
         #[display("Split Pane {}", match _0 {
@@ -75,7 +76,8 @@ actions! {
             @[Alt] + @ArrowRight => (MoveFocusDirection::Right),
             @[Alt] + @ArrowUp => (MoveFocusDirection::Up),
             @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
-        ]
+        ],
+        KeyBindPanelsToggle [ @[Alt+Shift] + "K" ]
     ]
 }
 

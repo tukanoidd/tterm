@@ -16,6 +16,7 @@ use tterm_macros::fonts;
 use crate::{
     app::App,
     cli::{Cli, LogLevel},
+    config::Config,
 };
 
 fonts!("assets/fonts/");
@@ -25,10 +26,24 @@ static CLI_PRESET: OnceLock<Option<String>> = OnceLock::new();
 fn main() -> Result<()> {
     init_rootcause()?;
 
-    let Cli { preset, log_level } = Cli::parse();
+    let Cli {
+        preset,
+        print_default_config,
+        log_level,
+    } = Cli::parse();
     let _ = CLI_PRESET.set(preset);
 
     init_tracing(log_level)?;
+
+    if print_default_config {
+        println!(
+            "{}",
+            Config::ron_options()
+                .to_string_pretty(&Config::default(), Config::ron_pretty_config())?
+        );
+
+        return Ok(());
+    }
 
     let app = iced::application(App::boot, App::update, App::view)
         .title(App::title)

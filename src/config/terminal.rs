@@ -21,7 +21,7 @@ pub struct TerminalFontConfig {
     #[default = 1.0]
     pub scale_factor: f32,
     pub font_type: Option<FontTypeConfig>,
-    #[default(EmbeddedFont::IosevkaFixed)]
+    #[default(EmbeddedFont::IosevkaFixedBold)]
     pub use_embedded_font: EmbeddedFont,
 }
 

@@ -7,6 +7,9 @@ pub struct Cli {
     #[arg(short, long)]
     pub preset: Option<String>,
 
+    #[arg(short = 'P', long)]
+    pub print_default_config: bool,
+
     #[arg(short, long, value_enum, default_value_t = LogLevel::default())]
     pub log_level: LogLevel,
 }

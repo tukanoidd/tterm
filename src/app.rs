@@ -7,10 +7,11 @@ use iced::{
     Length,
     alignment::Horizontal,
     keyboard::Modifiers,
-    widget::{center, column, rule, text},
+    widget::{self, center, column, rule, text, text_editor},
 };
 use iced_aw::Spinner;
 use itertools::Itertools;
+use strum::VariantArray;
 use uuid::Uuid;
 
 use crate::{
@@ -77,6 +78,9 @@ impl App {
                 tabs,
                 current_tab,
 
+                rename_tab_mode,
+                rename_tab_content,
+
                 config,
 
                 panel_expanded,
@@ -88,7 +92,7 @@ impl App {
                 };
 
                 column![
-                    TabBar::new(tabs, *current_tab).view(),
+                    TabBar::new(tabs, *current_tab, *rename_tab_mode, rename_tab_content).view(),
                     rule::horizontal(2),
                     tab_widget,
                     rule::horizontal(2),
@@ -172,6 +176,9 @@ impl App {
                     tabs: vec![],
                     current_tab: 0,
 
+                    rename_tab_mode: false,
+                    rename_tab_content: text_editor::Content::new(),
+
                     panel_expanded: HashMap::new(),
                 };
 
@@ -181,6 +188,35 @@ impl App {
                 };
             }
 
+            AppMsg::RenameTabEditorAction(action) => {
+                let rename_tab_content = get_main_state![rename_tab_content];
+
+                match action {
+                    text_editor::Action::Edit(text_editor::Edit::Enter) => {
+                        return AppTask::done(AppMsg::RenameCurrentTab(rename_tab_content.text()));
+                    }
+                    action => rename_tab_content.perform(action),
+                }
+            }
+            AppMsg::RenameCurrentTab(new_name) => {
+                let new_name = new_name.trim();
+
+                if new_name.is_empty() {
+                    return AppTask::none();
+                }
+
+                let (tabs, current_tab, rename_tab_mode) =
+                    get_main_state![tabs, current_tab, rename_tab_mode];
+
+                let Some(tab) = tabs.get_mut(*current_tab) else {
+                    return AppTask::none();
+                };
+
+                tab.name = Some(new_name.into());
+                *rename_tab_mode = false;
+
+                return AppTask::done(TTermTabAction::Select(*current_tab).into());
+            }
             AppMsg::CloseTab(id) => {
                 let (tabs, current_tab) = get_main_state![tabs, current_tab];
 
@@ -240,7 +276,8 @@ impl App {
             }
 
             AppMsg::Action(tterm_action) => {
-                let (tabs, current_tab, config) = get_main_state![tabs, current_tab, config];
+                let (tabs, current_tab, config, rename_tab_content) =
+                    get_main_state![tabs, current_tab, config, rename_tab_content];
 
                 match tterm_action {
                     TTermAction::Tab(act) => match act {
@@ -275,6 +312,8 @@ impl App {
 
                             *current_tab = index;
 
+                            *rename_tab_content = text_editor::Content::new();
+
                             if !tabs.is_empty() {
                                 let current_tab = &mut tabs[*current_tab];
                                 let Some((_, pane_state)) = current_tab
@@ -301,6 +340,12 @@ impl App {
                             };
 
                             current_tab.toggle_stacking();
+                        }
+                        TTermTabAction::ToggleRename => {
+                            let rename_tab_mode = get_main_state!(rename_tab_mode);
+                            *rename_tab_mode = true;
+
+                            return widget::operation::focus("rename-tab-editor");
                         }
                     },
                     TTermAction::Pane(act) => match act {
@@ -364,6 +409,18 @@ impl App {
                                     MoveFocusDirection::Up | MoveFocusDirection::Down => {}
                                 },
                             }
+                        }
+                        TTermGeneralAction::KeyBindPanelsToggle => {
+                            let panel_expanded = get_main_state![panel_expanded];
+                            let expanded =
+                                panel_expanded.values().next().copied().unwrap_or_default();
+
+                            return AppTask::batch(KeyBindPanelType::VARIANTS.iter().map(|ty| {
+                                AppTask::done(AppMsg::PanelToggle {
+                                    ty: *ty,
+                                    force: Some(!expanded),
+                                })
+                            }));
                         }
                     },
                 }
@@ -431,7 +488,8 @@ impl App {
                                                 },
                                             );
 
-                                            (iced_key == key && iced_modifiers == modifiers)
+                                            ([&key, &modified_key].contains(&&iced_key)
+                                                && iced_modifiers == modifiers)
                                                 .then_some(AppMsg::Action(action))
                                         },
                                     )
@@ -515,6 +573,9 @@ pub enum AppState {
         tabs: Vec<Tab>,
         current_tab: usize,
 
+        rename_tab_mode: bool,
+        rename_tab_content: text_editor::Content,
+
         panel_expanded: HashMap<KeyBindPanelType, bool>,
     },
 }
@@ -532,6 +593,10 @@ pub enum AppMsg {
     LoadConfig,
     LoadedConfig(Box<Config>),
 
+    #[from(skip)]
+    RenameTabEditorAction(text_editor::Action),
+    #[from(skip)]
+    RenameCurrentTab(String),
     #[from(skip)]
     CloseTab(Uuid),
     #[from(skip)]
