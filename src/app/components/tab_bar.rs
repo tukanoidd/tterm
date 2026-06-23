@@ -1,7 +1,11 @@
+use bon::bon;
 use iced::{
     Length, Padding,
     alignment::Vertical,
-    widget::{container, mouse_area, row, rule, scrollable, space, text, text_editor},
+    widget::{
+        button, center, container, mouse_area, rich_text, row, rule, scrollable, space, span, text,
+        text_editor,
+    },
 };
 use iced_aw::{Badge, badge};
 use iced_fonts::lucide;
@@ -21,6 +25,7 @@ pub struct TabBar<'a> {
     rename_content: &'a text_editor::Content,
 }
 
+#[bon]
 impl<'a> TabBar<'a> {
     pub fn new(
         tabs: &'a [Tab],
@@ -71,6 +76,7 @@ impl<'a> TabBar<'a> {
                 .enumerate()
                 .map(Self::tab_badge(current_tab, rename_mode))
                 .chain([rule::vertical(2).into(), Self::new_tab_badge()]))
+            .align_y(Vertical::Center)
             .height(Length::Shrink)
             .spacing(10),
         )
@@ -82,19 +88,44 @@ impl<'a> TabBar<'a> {
         current_tab: usize,
         rename_mode: bool,
     ) -> impl Fn((usize, &Tab)) -> AppElement<'a> {
-        move |(ind, Tab { name, .. })| {
-            let icon = match current_tab == ind {
-                true => match rename_mode {
-                    true => lucide::square_pen(),
-                    false => lucide::focus(),
-                },
-                false => lucide::scan(),
-            };
+        move |(ind, Tab { id, name, .. })| {
+            const ICON_SIZE: f32 = 30.0;
+
+            let is_current = current_tab == ind;
+            let icon = center(
+                match is_current {
+                    true => match rename_mode {
+                        true => lucide::square_pen(),
+                        false => lucide::focus(),
+                    },
+                    false => lucide::scan(),
+                }
+                .center(),
+            )
+            .width(Length::Fixed(ICON_SIZE))
+            .height(Length::Fixed(ICON_SIZE))
+            .style(style::tab_badge_icon);
             let name_text = match name {
                 Some(name) => name.clone(),
                 None => format!("Tab #{ind}"),
             };
-            let badge = Self::badge(icon, name_text).style(style::tab_badge(current_tab, ind));
+
+            const CLOSE_BUTTON_SIZE: f32 = 25.0;
+
+            let close_button = button(center(lucide::x().center()))
+                .padding(2)
+                .width(Length::Fixed(CLOSE_BUTTON_SIZE))
+                .height(Length::Fixed(CLOSE_BUTTON_SIZE))
+                .style(style::close_button)
+                .on_press(AppMsg::CloseTab(*id));
+            let badge = Self::badge()
+                .icon(icon)
+                .content(name_text)
+                .underline(is_current)
+                .additional(close_button)
+                .call()
+                .style(style::tab_badge(current_tab, ind))
+                .padding(2);
 
             mouse_area(badge)
                 .on_press(TTermTabAction::Select(ind).into())
@@ -103,37 +134,70 @@ impl<'a> TabBar<'a> {
     }
 
     fn new_tab_badge() -> AppElement<'a> {
-        mouse_area(Self::badge(lucide::plus(), "New Tab").style(iced_aw::style::badge::secondary))
-            .on_press(TTermTabAction::New(None).into())
-            .into()
+        mouse_area(
+            Self::badge()
+                .icon(lucide::plus())
+                .content("New Tab")
+                .call()
+                .style(iced_aw::style::badge::secondary)
+                .padding(6),
+        )
+        .on_press(TTermTabAction::New(None).into())
+        .into()
     }
 
+    #[builder]
     fn badge(
-        icon: impl Into<AppElement<'a>>,
+        #[builder(into)] icon: AppElement<'a>,
         content: impl text::IntoFragment<'a>,
+        #[builder(default)] underline: bool,
+        #[builder(into)] additional: Option<AppElement<'a>>,
     ) -> Badge<'a, AppMsg, AppTheme, AppRenderer> {
         badge(
-            row![
-                icon.into(),
-                text(content).font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_BOLD_FONT)
+            row([
+                icon,
+                rich_text::<'_, (), _, _, _>([span(content).underline(underline)])
+                    .font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_BOLD_FONT)
+                    .center()
+                    .into(),
             ]
+            .into_iter()
+            .chain(additional))
             .align_y(Vertical::Center)
-            .padding(2)
-            .spacing(6),
+            .padding(Padding::default().vertical(2))
+            .spacing(8),
         )
     }
 }
 
 pub mod style {
+    use iced::widget::{button, container};
     use iced_aw::badge;
+
+    use crate::app::AppTheme;
 
     pub fn tab_badge(
         current_tab: usize,
         ind: usize,
-    ) -> impl Fn(&iced::Theme, badge::Status) -> badge::Style {
+    ) -> impl Fn(&AppTheme, badge::Status) -> badge::Style {
         move |theme, status| match current_tab == ind {
             true => iced_aw::style::badge::info(theme, status),
             false => iced_aw::style::badge::primary(theme, status),
         }
+    }
+
+    pub fn tab_badge_icon(theme: &AppTheme) -> container::Style {
+        let mut style = container::secondary(theme);
+        style.border = style.border.rounded(25);
+        style.background = style.background.map(|b| b.scale_alpha(0.7));
+
+        style
+    }
+
+    pub fn close_button(theme: &AppTheme, status: button::Status) -> button::Style {
+        let mut style = button::secondary(theme, status);
+        style.border = style.border.rounded(25);
+
+        style
     }
 }

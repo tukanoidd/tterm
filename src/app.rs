@@ -40,15 +40,12 @@ pub type AppTask = iced::Task<AppMsg>;
 pub type AppSubscription = iced::Subscription<AppMsg>;
 
 pub struct App {
-    theme: AppTheme,
-
     state: AppState,
 }
 
 impl App {
     pub fn boot() -> (Self, AppTask) {
         let res = Self {
-            theme: AppTheme::TokyoNight,
             state: AppState::LoadingConfig,
         };
         let task = AppTask::done(AppMsg::LoadConfig);
@@ -61,7 +58,10 @@ impl App {
     }
 
     pub fn theme(&self) -> AppTheme {
-        self.theme.clone()
+        match &self.state {
+            AppState::LoadingConfig => AppTheme::Dark,
+            AppState::Main { config, .. } => config.general.theme.into(),
+        }
     }
 
     pub fn view(&self) -> AppElement<'_> {
