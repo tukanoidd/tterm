@@ -312,10 +312,13 @@ impl App {
 
                             *current_tab = index;
 
-                            *rename_tab_content = text_editor::Content::new();
-
                             if !tabs.is_empty() {
                                 let current_tab = &mut tabs[*current_tab];
+
+                                *rename_tab_content = text_editor::Content::with_text(
+                                    current_tab.name.as_deref().unwrap_or_default(),
+                                );
+
                                 let Some((_, pane_state)) = current_tab
                                     .panes
                                     .get_mut(&current_tab.current_panes_type)
