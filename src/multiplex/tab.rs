@@ -188,6 +188,12 @@ impl Tab {
         terminal_config: &TerminalConfig,
         keybinds_config: &KeyBindsConfig,
     ) -> AppTask {
+        let focused_pane_pwd = self
+            .panes
+            .get(&self.current_panes_type)
+            .and_then(|p| p.focused_pane())
+            .map(|(_, p)| p.pwd.clone());
+
         self.current_panes_type = match self.current_panes_type {
             TabPanesType::Normal => TabPanesType::Floating,
             TabPanesType::Floating => TabPanesType::Normal,
@@ -196,16 +202,23 @@ impl Tab {
         let mut tasks = vec![];
 
         if !self.panes.contains_key(&self.current_panes_type) {
-            let (tab_pane_state, task) =
-                match TabPanesState::new(terminal_config, keybinds_config, None) {
-                    Ok(res) => res,
-                    Err(err) => {
-                        return AppTask::done(AppMsg::Error {
-                            message: err.to_string(),
-                            critical: false,
-                        });
-                    }
-                };
+            let (tab_pane_state, task) = match TabPanesState::new(
+                terminal_config,
+                keybinds_config,
+                focused_pane_pwd.map(|pwd| PaneConfig {
+                    working_directory: Some(pwd),
+                    program: None,
+                    split: None,
+                }),
+            ) {
+                Ok(res) => res,
+                Err(err) => {
+                    return AppTask::done(AppMsg::Error {
+                        message: err.to_string(),
+                        critical: false,
+                    });
+                }
+            };
             self.panes.insert(self.current_panes_type, tab_pane_state);
 
             tasks.push(task);
@@ -434,7 +447,7 @@ impl TabPanesState {
         terminal_config: &TerminalConfig,
         keybinds_config: &KeyBindsConfig,
     ) -> Result<AppTask> {
-        let Some((focused_pane, _)) = self.focused_pane() else {
+        let Some((focused_pane, focused_pane_state)) = self.focused_pane() else {
             return Ok(AppTask::none());
         };
 
@@ -443,6 +456,7 @@ impl TabPanesState {
             .id(pane_id)
             .terminal_config(terminal_config)
             .keybinds_config(keybinds_config)
+            .working_directory(focused_pane_state.pwd.clone())
             .build()?;
 
         self.panes.split(

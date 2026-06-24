@@ -29,6 +29,7 @@ use crate::{
 pub struct PaneState {
     pub id: Uuid,
     pub term_id: u64,
+    pub pwd: PathBuf,
 
     #[debug(skip)]
     terminal: Terminal,
@@ -59,6 +60,10 @@ impl PaneState {
             None => (None, None),
         };
 
+        let working_directory = match working_directory {
+            Some(d) => PathBuf::from(shellexpand::full(&d.to_string_lossy())?.to_string()),
+            None => std::env::current_dir()?,
+        };
         let mut terminal = Terminal::new(
             term_id,
             iced_term::settings::Settings {
@@ -77,12 +82,7 @@ impl PaneState {
                         .unwrap_or("nu".into()), // This is my preferred shell, deal with it
                     args: args.unwrap_or_default(),
                     env,
-                    working_directory: match working_directory {
-                        Some(d) => Some(PathBuf::from(
-                            shellexpand::full(&d.to_string_lossy())?.to_string(),
-                        )),
-                        None => Some(std::env::current_dir()?),
-                    },
+                    working_directory: Some(working_directory.clone()),
                 },
             },
         )?;
@@ -120,6 +120,7 @@ impl PaneState {
         Ok(Self {
             id,
             term_id,
+            pwd: working_directory,
             terminal,
         })
     }
@@ -156,14 +157,41 @@ impl PaneState {
                     .terminal
                     .handle(iced_term::Command::ProxyToBackend(command.clone()));
 
-                if action == iced_term::actions::Action::Shutdown {
-                    return Some(AppTask::done(
-                        IdPaneMessage {
-                            id: self.id,
-                            msg: PaneMessage::Close,
+                match action {
+                    iced_term::actions::Action::Shutdown => {
+                        return Some(AppTask::done(
+                            IdPaneMessage {
+                                id: self.id,
+                                msg: PaneMessage::Close,
+                            }
+                            .into(),
+                        ));
+                    }
+                    iced_term::actions::Action::ChangeTitle(new_title) => {
+                        let maybe_path = PathBuf::from(new_title.clone());
+
+                        match maybe_path.exists() {
+                            true => {
+                                if maybe_path.is_dir() {
+                                    self.pwd = maybe_path;
+                                }
+                            }
+                            false => match shellexpand::full(&new_title) {
+                                Ok(expanded_path_str) => {
+                                    let expanded_path =
+                                        PathBuf::from(expanded_path_str.to_string());
+
+                                    if expanded_path.exists() && expanded_path.is_dir() {
+                                        self.pwd = expanded_path;
+                                    }
+                                }
+                                Err(_) => {
+                                    // TODO: maybe check for errors related to path being faulty or smth
+                                }
+                            },
                         }
-                        .into(),
-                    ));
+                    }
+                    _ => {}
                 }
             }
             _ => unreachable!(),
