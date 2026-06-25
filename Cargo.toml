@@ -11,7 +11,7 @@ authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 [workspace.dependencies]
 clap = "4.6"
 
-iced = "0.14"
+iced = { version = "0.14", default-features = false }
 iced_aw = { version = "0.14", default-features = false }
 iced_fonts = "0.3"
 # iced_term = "0.8"
@@ -67,7 +67,17 @@ tterm-macros.path = "tterm-macros"
 
 clap = { workspace = true, features = ["derive"] }
 
-iced = { workspace = true, features = ["advanced", "tokio"] }
+iced = { workspace = true, features = [
+  "wayland",
+  "x11",
+  "crisp",
+  "wgpu",
+  "linux-theme-detection",
+  "web-colors",
+  "advanced",
+  "advanced-shaping",
+  "tokio",
+] }
 iced_aw = { workspace = true, features = ["spinner", "badge", "drop_down"] }
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
