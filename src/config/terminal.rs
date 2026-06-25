@@ -153,62 +153,49 @@ impl From<TerminalThemeConfig> for ThemeSettings {
     }
 }
 
-#[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, remote = "iced_term::ColorPalette")]
-pub struct TerminalColorPalette {
-    #[default = "#d8d8d8"]
-    pub foreground: String,
-    #[default = "#181818"]
-    pub background: String,
-    #[default = "#181818"]
-    pub black: String,
-    #[default = "#ac4242"]
-    pub red: String,
-    #[default = "#90a959"]
-    pub green: String,
-    #[default = "#f4bf75"]
-    pub yellow: String,
-    #[default = "#6a9fb5"]
-    pub blue: String,
-    #[default = "#aa759f"]
-    pub magenta: String,
-    #[default = "#75b5aa"]
-    pub cyan: String,
-    #[default = "#d8d8d8"]
-    pub white: String,
-    #[default = "#6b6b6b"]
-    pub bright_black: String,
-    #[default = "#c55555"]
-    pub bright_red: String,
-    #[default = "#aac474"]
-    pub bright_green: String,
-    #[default = "#feca88"]
-    pub bright_yellow: String,
-    #[default = "#82b8c8"]
-    pub bright_blue: String,
-    #[default = "#c28cb8"]
-    pub bright_magenta: String,
-    #[default = "#93d3c3"]
-    pub bright_cyan: String,
-    #[default = "#f8f8f8"]
-    pub bright_white: String,
-    pub bright_foreground: Option<String>,
-    #[default = "#828482"]
-    pub dim_foreground: String,
-    #[default = "#0f0f0f"]
-    pub dim_black: String,
-    #[default = "#712b2b"]
-    pub dim_red: String,
-    #[default = "#5f6f3a"]
-    pub dim_green: String,
-    #[default = "#a17e4d"]
-    pub dim_yellow: String,
-    #[default = "#456877"]
-    pub dim_blue: String,
-    #[default = "#704d68"]
-    pub dim_magenta: String,
-    #[default = "#4d7770"]
-    pub dim_cyan: String,
-    #[default = "#8e8e8e"]
-    pub dim_white: String,
+macro_rules! color_palette {
+    (
+        $($(@$opt:ident)? $name:ident: $ty:ty $(= $default:expr)?),+
+        $(,)?
+    ) => {
+        #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
+        #[serde(default, remote = "iced_term::ColorPalette")]
+        pub struct TerminalColorPalette {
+            $($(#[default($default.into())])? pub $name: $ty),+
+        }
+    };
+}
+
+color_palette! {
+    background: String = "#1a1b26",
+    foreground: String = "#c0caf5",
+
+    black: String = "#15161e",
+    red: String = "#f7768e",
+    green: String = "#9ece6a",
+    yellow: String = "#e0af68",
+    blue: String = "#7aa2f7",
+    magenta: String = "#bb9af7",
+    cyan: String = "#7dcfff",
+    white: String = "#a9b1d6",
+
+    dim_foreground: String = "#c0caf5",
+    dim_black: String = "#15161e",
+    dim_red: String = "#f7768e",
+    dim_green: String = "#9ece6a",
+    dim_yellow: String = "#e0af68",
+    dim_blue: String = "#7aa2f7",
+    dim_magenta: String = "#bb9af7",
+    dim_cyan: String = "#7dcfff",
+    dim_white: String = "#a9b1d6",
+
+    bright_black: String = "#414868",
+    bright_red: String = "#f7768e",
+    bright_green: String = "#9ece6a",
+    bright_yellow: String = "#e0af68",
+    bright_blue: String = "#7aa2f7",
+    bright_magenta: String = "#bb9af7",
+    bright_cyan: String = "#7dcfff",
+    bright_white: String = "#c0caf5",
+    bright_foreground: Option<String> = Some("#c0caf5".into()),
 }
