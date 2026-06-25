@@ -150,7 +150,7 @@ impl PaneState {
         .into()
     }
 
-    pub fn update(&mut self, msg: &PaneMessage) -> Option<AppTask> {
+    pub fn update(&mut self, msg: &PaneMessage, is_focused: bool) -> Option<AppTask> {
         match msg {
             PaneMessage::TerminalMsg(iced_term::Event::BackendCall(_, command)) => {
                 let action = self
@@ -170,10 +170,13 @@ impl PaneState {
                     iced_term::actions::Action::ChangeTitle(new_title) => {
                         let maybe_path = PathBuf::from(new_title.clone());
 
+                        let mut pwd_switched = false;
+
                         match maybe_path.exists() {
                             true => {
                                 if maybe_path.is_dir() {
                                     self.pwd = maybe_path;
+                                    pwd_switched = true;
                                 }
                             }
                             false => match shellexpand::full(&new_title) {
@@ -182,6 +185,7 @@ impl PaneState {
                                         PathBuf::from(expanded_path_str.to_string());
 
                                     if expanded_path.exists() && expanded_path.is_dir() {
+                                        pwd_switched = true;
                                         self.pwd = expanded_path;
                                     }
                                 }
@@ -189,6 +193,10 @@ impl PaneState {
                                     // TODO: maybe check for errors related to path being faulty or smth
                                 }
                             },
+                        }
+
+                        if pwd_switched && is_focused {
+                            return Some(AppTask::done(AppMsg::UpdateFocusedDirectoryTree));
                         }
                     }
                     _ => {}

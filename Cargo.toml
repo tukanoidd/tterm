@@ -15,6 +15,7 @@ iced = "0.14"
 iced_aw = { version = "0.14", default-features = false }
 iced_fonts = "0.3"
 # iced_term = "0.8"
+iced-swdir-tree = "0.9"
 iced_term.git = "https://github.com/Harzu/iced_term"
 
 directories = "6.0"
@@ -69,6 +70,7 @@ clap = { workspace = true, features = ["derive"] }
 iced = { workspace = true, features = ["advanced", "tokio"] }
 iced_aw = { workspace = true, features = ["spinner", "badge", "drop_down"] }
 iced_fonts = { workspace = true, features = ["lucide"] }
+iced-swdir-tree.workspace = true
 iced_term.workspace = true
 
 directories.workspace = true

@@ -582,6 +582,7 @@ impl TabPanesState {
         IdPaneMessage { id, msg }: &IdPaneMessage,
         floating: bool,
     ) -> Option<AppTask> {
+        let is_focused = self.focused_pane == *id;
         let (_, p) = self.pane_mut(*id)?;
 
         match msg {
@@ -603,7 +604,7 @@ impl TabPanesState {
                 pane_grid::DragEvent::Canceled { .. } => None,
             },
             PaneMessage::Close => self.close_pane(tab_id, *id, floating),
-            msg => p.update(msg),
+            msg => p.update(msg, is_focused),
         }
     }
 

@@ -12,7 +12,7 @@ use iced_fonts::lucide;
 
 use crate::{
     app::{AppElement, AppMsg, AppRenderer, AppTheme},
-    config::keybinds::TTermTabAction,
+    config::keybinds::{TTermGeneralAction, TTermTabAction},
     fonts,
     multiplex::tab::Tab,
 };
@@ -23,6 +23,8 @@ pub struct TabBar<'a> {
 
     rename_mode: bool,
     rename_content: &'a text_editor::Content,
+
+    show_directory_tree: bool,
 }
 
 #[bon]
@@ -32,6 +34,7 @@ impl<'a> TabBar<'a> {
         current_tab: usize,
         rename_mode: bool,
         rename_content: &'a text_editor::Content,
+        show_directory_tree: bool,
     ) -> Self {
         Self {
             tabs,
@@ -39,6 +42,8 @@ impl<'a> TabBar<'a> {
 
             rename_mode,
             rename_content,
+
+            show_directory_tree,
         }
     }
 
@@ -49,7 +54,16 @@ impl<'a> TabBar<'a> {
 
             rename_mode,
             rename_content,
+
+            show_directory_tree,
         } = self;
+
+        let toggle_show_directory_tree_button = button(match show_directory_tree {
+            true => lucide::panel_left_open(),
+            false => lucide::panel_left_close(),
+        })
+        .style(button::subtle)
+        .on_press(TTermGeneralAction::DirectoryTreeToggle.into());
 
         let scrollable_tab_list = Self::tab_list(tabs, current_tab, rename_mode);
         let current_tab_name_editor = rename_mode.then(|| {
@@ -58,7 +72,13 @@ impl<'a> TabBar<'a> {
                 .on_action(AppMsg::RenameTabEditorAction)
         });
 
-        container(row([scrollable_tab_list].into_iter().chain(
+        container(row([
+            toggle_show_directory_tree_button.into(),
+            space().width(Length::Fixed(15.0)).into(),
+            scrollable_tab_list,
+        ]
+        .into_iter()
+        .chain(
             current_tab_name_editor
                 .map(|ed| [space().width(Length::Fill).into(), ed.width(300).into()])
                 .into_iter()

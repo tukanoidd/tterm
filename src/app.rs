@@ -8,9 +8,10 @@ use iced::{
     alignment::Horizontal,
     keyboard::{self, Modifiers},
     mouse,
-    widget::{self, center, column, rule, text, text_editor},
+    widget::{self, center, column, container, row, rule, text, text_editor},
 };
 use iced_aw::Spinner;
+use iced_swdir_tree::{DirectoryTree, DirectoryTreeEvent};
 use itertools::Itertools;
 use strum::VariantArray;
 use uuid::Uuid;
@@ -85,17 +86,32 @@ impl App {
                 config,
 
                 panel_expanded,
+
+                show_directory_tree,
+                directory_tree,
                 ..
             } => {
+                let directory_tree_view = show_directory_tree.then(|| {
+                    container(directory_tree.view(AppMsg::DirectoryTree))
+                        .width(Length::Fixed(400.0))
+                        .into()
+                });
                 let tab_widget = match tabs.get(*current_tab) {
                     None => center(Spinner::new().width(20).height(20)).into(),
                     Some(tab) => tab.view(),
                 };
 
                 column![
-                    TabBar::new(tabs, *current_tab, *rename_tab_mode, rename_tab_content).view(),
+                    TabBar::new(
+                        tabs,
+                        *current_tab,
+                        *rename_tab_mode,
+                        rename_tab_content,
+                        *show_directory_tree
+                    )
+                    .view(),
                     rule::horizontal(2),
-                    tab_widget,
+                    row(directory_tree_view.into_iter().chain([tab_widget])),
                     rule::horizontal(2),
                     KeyBindBar::new(&config.keybinds, panel_expanded).view()
                 ]
@@ -171,6 +187,17 @@ impl App {
                     None => vec![],
                 };
 
+                let home_dir = match std::env::home_dir() {
+                    Some(home_dir) => home_dir,
+                    None => {
+                        return AppTask::done(AppMsg::Error {
+                            message: "Failed to find home directory".into(),
+                            critical: true,
+                        });
+                    }
+                };
+                let directory_tree = DirectoryTree::new(home_dir.clone()).with_prefetch_limit(1);
+
                 self.state = AppState::Main {
                     config,
 
@@ -181,12 +208,39 @@ impl App {
                     rename_tab_content: text_editor::Content::new(),
 
                     panel_expanded: HashMap::new(),
+
+                    directory_tree: Box::new(directory_tree),
+                    show_directory_tree: false,
                 };
 
-                return match new_tab_tasks.is_empty() {
-                    true => AppTask::done(TTermTabAction::New(None).into()),
-                    false => AppTask::batch(new_tab_tasks),
+                return AppTask::batch([
+                    AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(home_dir))),
+                    match new_tab_tasks.is_empty() {
+                        true => AppTask::done(TTermTabAction::New(None).into()),
+                        false => AppTask::batch(new_tab_tasks),
+                    },
+                ]);
+            }
+
+            AppMsg::UpdateFocusedDirectoryTree => {
+                let (tabs, current_tab, directory_tree) =
+                    get_main_state![tabs, current_tab, directory_tree];
+                let Some((_, focused_pane)) = tabs.get(*current_tab).and_then(|t| t.focused_pane())
+                else {
+                    return AppTask::none();
                 };
+
+                **directory_tree =
+                    DirectoryTree::new(focused_pane.pwd.clone()).with_prefetch_limit(1);
+
+                return AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(
+                    focused_pane.pwd.clone(),
+                )));
+            }
+            AppMsg::DirectoryTree(event) => {
+                let directory_tree = get_main_state![directory_tree];
+
+                return directory_tree.update(event).map(AppMsg::DirectoryTree);
             }
 
             AppMsg::RenameTabEditorAction(action) => {
@@ -257,7 +311,9 @@ impl App {
                     return AppTask::none();
                 };
 
-                return tab.focus_pane(id);
+                return tab
+                    .focus_pane(id)
+                    .chain(AppTask::done(AppMsg::UpdateFocusedDirectoryTree));
             }
 
             AppMsg::Pane(pane_msg) => {
@@ -313,23 +369,25 @@ impl App {
 
                             *current_tab = index;
 
-                            if !tabs.is_empty() {
-                                let current_tab = &mut tabs[*current_tab];
-
-                                *rename_tab_content = text_editor::Content::with_text(
-                                    current_tab.name.as_deref().unwrap_or_default(),
-                                );
-
-                                let Some((_, pane_state)) = current_tab
-                                    .panes
-                                    .get_mut(&current_tab.current_panes_type)
-                                    .and_then(|panes| panes.focused_pane_mut())
-                                else {
-                                    return AppTask::none();
-                                };
-
-                                return AppTask::done(AppMsg::FocusPane(pane_state.id));
+                            if tabs.is_empty() {
+                                return AppTask::none();
                             }
+
+                            let current_tab = &mut tabs[*current_tab];
+
+                            *rename_tab_content = text_editor::Content::with_text(
+                                current_tab.name.as_deref().unwrap_or_default(),
+                            );
+
+                            let Some((_, pane_state)) = current_tab
+                                .panes
+                                .get_mut(&current_tab.current_panes_type)
+                                .and_then(|panes| panes.focused_pane_mut())
+                            else {
+                                return AppTask::none();
+                            };
+
+                            return AppTask::done(AppMsg::FocusPane(pane_state.id));
                         }
                         TTermTabAction::FocusedToggleFloating => {
                             let Some(current_tab) = tabs.get_mut(*current_tab) else {
@@ -431,6 +489,17 @@ impl App {
                                     force: Some(!expanded),
                                 })
                             }));
+                        }
+                        TTermGeneralAction::DirectoryTreeToggle => {
+                            let (show_directory_tree, tabs, current_tab) =
+                                get_main_state!(show_directory_tree, tabs, current_tab);
+                            *show_directory_tree = !*show_directory_tree;
+
+                            if let Some((_, pane)) =
+                                tabs.get(*current_tab).and_then(|t| t.focused_pane())
+                            {
+                                return AppTask::done(AppMsg::FocusPane(pane.id));
+                            }
                         }
                     },
                 }
@@ -640,6 +709,9 @@ pub enum AppState {
         rename_tab_content: text_editor::Content,
 
         panel_expanded: HashMap<KeyBindPanelType, bool>,
+
+        show_directory_tree: bool,
+        directory_tree: Box<DirectoryTree>,
     },
 }
 
@@ -655,6 +727,9 @@ pub enum AppMsg {
 
     LoadConfig,
     LoadedConfig(Box<Config>),
+
+    UpdateFocusedDirectoryTree,
+    DirectoryTree(DirectoryTreeEvent),
 
     #[from(skip)]
     RenameTabEditorAction(text_editor::Action),

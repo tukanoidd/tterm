@@ -77,7 +77,8 @@ actions! {
             @[Alt] + @ArrowUp => (MoveFocusDirection::Up),
             @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
         ],
-        KeyBindPanelsToggle [ @[Alt+Shift] + "K" ]
+        KeyBindPanelsToggle [ @[Alt+Shift] + "K" ],
+        DirectoryTreeToggle [ @[Alt+Shift] + "F"  ]
     ]
 }
 
