@@ -92,19 +92,17 @@ impl<'a> TabBar<'a> {
             const ICON_SIZE: f32 = 30.0;
 
             let is_current = current_tab == ind;
-            let icon = center(
-                match is_current {
-                    true => match rename_mode {
-                        true => lucide::square_pen(),
-                        false => lucide::focus(),
-                    },
-                    false => lucide::scan(),
-                }
-                .center(),
-            )
+            let icon = match is_current {
+                true => match rename_mode {
+                    true => lucide::square_pen(),
+                    false => lucide::focus(),
+                },
+                false => lucide::scan(),
+            }
+            .center()
             .width(Length::Fixed(ICON_SIZE))
-            .height(Length::Fixed(ICON_SIZE))
-            .style(style::tab_badge_icon);
+            .height(Length::Fixed(ICON_SIZE));
+
             let name_text = match name {
                 Some(name) => name.clone(),
                 None => format!("Tab #{ind}"),
@@ -164,14 +162,14 @@ impl<'a> TabBar<'a> {
             .into_iter()
             .chain(additional))
             .align_y(Vertical::Center)
-            .padding(Padding::default().vertical(2))
+            .padding(Padding::default().vertical(2).horizontal(2))
             .spacing(8),
         )
     }
 }
 
 pub mod style {
-    use iced::widget::{button, container};
+    use iced::widget::button;
     use iced_aw::badge;
 
     use crate::app::AppTheme;
@@ -184,14 +182,6 @@ pub mod style {
             true => iced_aw::style::badge::info(theme, status),
             false => iced_aw::style::badge::primary(theme, status),
         }
-    }
-
-    pub fn tab_badge_icon(theme: &AppTheme) -> container::Style {
-        let mut style = container::secondary(theme);
-        style.border = style.border.rounded(25);
-        style.background = style.background.map(|b| b.scale_alpha(0.7));
-
-        style
     }
 
     pub fn close_button(theme: &AppTheme, status: button::Status) -> button::Style {
