@@ -45,7 +45,7 @@ actions! {
             @[Ctrl+Shift] + "9" => (8),
         ],
         #[display("Toggle Floating Panes")]
-        FocusedToggleFloating [ @[Ctrl+Shift] + "F" ],
+        FocusedToggleFloating [ @[Ctrl+Shift] + "E" ],
         #[display("Toggle Pane stacking")]
         FocusedTogglePaneStacking [ @[Ctrl+Shift] + "S" ],
         ToggleRename [ @[Ctrl+Shift] + "R"  ]
