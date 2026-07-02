@@ -218,7 +218,7 @@ impl From<Key> for iced::keyboard::Key {
     fn from(key: Key) -> iced::keyboard::Key {
         match key {
             Key::Named(named) => iced::keyboard::Key::Named(named.into()),
-            Key::Character(char) => iced::keyboard::Key::Character((&char).into()),
+            Key::Character(char) => iced::keyboard::Key::Character(char.to_lowercase().into()),
         }
     }
 }

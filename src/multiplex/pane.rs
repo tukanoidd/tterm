@@ -108,8 +108,8 @@ impl PaneState {
                                     Modifier::Alt => Modifiers::ALT,
                                 }
                             }),
-                            terminal_mode_include: TermMode::default(),
-                            terminal_mode_exclude: TermMode::default(),
+                            terminal_mode_include: TermMode::empty(),
+                            terminal_mode_exclude: TermMode::all(),
                         },
                         iced_term::bindings::BindingAction::Ignore,
                     )

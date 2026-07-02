@@ -433,8 +433,6 @@ impl App {
                                 return AppTask::none();
                             };
 
-                            tracing::debug!("Close focused pane");
-
                             return tab.close_focused_pane();
                         }
                         TTermPaneAction::MoveFocused(direction) => {
@@ -599,49 +597,56 @@ impl App {
                             modifiers,
                             text,
                             repeat,
-                        } => vec![
-                            (!repeat)
-                                .then(|| {
-                                    binds.into_iter().find_map(
-                                        |(
-                                            _,
-                                            KeyBind {
-                                                key: bind_key,
-                                                modifiers: bind_modifiers,
-                                            },
-                                            action,
-                                        )| {
-                                            let iced_key: iced::keyboard::Key = bind_key.into();
-                                            let iced_modifiers = bind_modifiers.into_iter().fold(
-                                                Modifiers::empty(),
-                                                |mods, mod_| match mod_ {
-                                                    Modifier::Ctrl => mods | Modifiers::CTRL,
-                                                    Modifier::Shift => mods | Modifiers::SHIFT,
-                                                    Modifier::Alt => mods | Modifiers::ALT,
+                        } => {
+                            vec![
+                                (!repeat)
+                                    .then(|| {
+                                        binds.into_iter().find_map(
+                                            |(
+                                                _,
+                                                KeyBind {
+                                                    key: bind_key,
+                                                    modifiers: bind_modifiers,
                                                 },
-                                            );
+                                                action,
+                                            )| {
+                                                let iced_key: iced::keyboard::Key = bind_key.into();
+                                                let iced_modifiers = bind_modifiers
+                                                    .into_iter()
+                                                    .fold(Modifiers::empty(), |mods, mod_| {
+                                                        match mod_ {
+                                                            Modifier::Ctrl => {
+                                                                mods | Modifiers::CTRL
+                                                            }
+                                                            Modifier::Shift => {
+                                                                mods | Modifiers::SHIFT
+                                                            }
+                                                            Modifier::Alt => mods | Modifiers::ALT,
+                                                        }
+                                                    });
 
-                                            ([&key, &modified_key].contains(&&iced_key)
-                                                && iced_modifiers == modifiers)
-                                                .then_some(AppMsg::Action(action))
-                                        },
-                                    )
-                                })
-                                .flatten()
-                                .unwrap_or_else(|| {
-                                    AppMsg::IcedEvent(iced::Event::Keyboard(
-                                        iced::keyboard::Event::KeyPressed {
-                                            key,
-                                            modified_key,
-                                            physical_key,
-                                            location,
-                                            modifiers,
-                                            text,
-                                            repeat,
-                                        },
-                                    ))
-                                }),
-                        ],
+                                                ([&key, &modified_key].contains(&&iced_key)
+                                                    && iced_modifiers == modifiers)
+                                                    .then_some(AppMsg::Action(action))
+                                            },
+                                        )
+                                    })
+                                    .flatten()
+                                    .unwrap_or_else(|| {
+                                        AppMsg::IcedEvent(iced::Event::Keyboard(
+                                            iced::keyboard::Event::KeyPressed {
+                                                key,
+                                                modified_key,
+                                                physical_key,
+                                                location,
+                                                modifiers,
+                                                text,
+                                                repeat,
+                                            },
+                                        ))
+                                    }),
+                            ]
+                        }
                         keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
                             true => {
                                 let changed_mods = modifiers
