@@ -14,8 +14,8 @@ clap = "4.6"
 iced = { version = "0.14", default-features = false }
 iced_aw = { version = "0.14", default-features = false }
 iced_fonts = "0.3"
-# iced_term = "0.8"
 iced-swdir-tree = "0.9"
+# iced_term = "0.8"
 iced_term.git = "https://github.com/Harzu/iced_term"
 
 directories = "6.0"
