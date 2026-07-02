@@ -7,9 +7,11 @@ use std::{
 use bon::bon;
 use derive_more::{Debug, From};
 use iced::{
+    Length,
     keyboard::Modifiers,
-    widget::{container, mouse_area, pane_grid},
+    widget::{button, column, container, mouse_area, pane_grid, text},
 };
+use iced_aw::ContextMenu;
 use iced_term::{TermMode, Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
@@ -19,7 +21,7 @@ static TERM_ID: AtomicU64 = AtomicU64::new(0);
 use crate::{
     app::{AppElement, AppMsg, AppSubscription, AppTask},
     config::{
-        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier},
+        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier, TTermPaneAction},
         presets::ProgramConfig,
         terminal::TerminalConfig,
     },
@@ -126,7 +128,7 @@ impl PaneState {
     }
 
     pub fn view(&self, is_focused: bool) -> AppElement<'_> {
-        container(
+        let pane_view = container(
             mouse_area(
                 TerminalView::show(&self.terminal)
                     .map(|e| IdPaneMessage {
@@ -146,8 +148,23 @@ impl PaneState {
                 true => palette.primary.strong.color,
                 false => palette.secondary.base.color,
             }))
-        })
-        .into()
+        });
+        let selection_items = || {
+            column(
+                TTermPaneAction::default_keybinds()
+                    .into_iter()
+                    .map(|(_, action)| {
+                        button(text(action.to_string()))
+                            .on_press(action.into())
+                            .style(button::subtle)
+                            .width(Length::Fixed(300.0))
+                            .into()
+                    }),
+            )
+            .into()
+        };
+
+        ContextMenu::new(pane_view, selection_items).into()
     }
 
     pub fn update(&mut self, msg: &PaneMessage, is_focused: bool) -> Option<AppTask> {

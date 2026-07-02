@@ -63,7 +63,7 @@ impl<'a> KeyBindBar<'a> {
 
     fn panel(
         ty: KeyBindPanelType,
-        binds: &'a HashMap<KeyBind, TTermAction>,
+        binds: &'a [(KeyBind, TTermAction)],
         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
         let binds = binds
@@ -81,9 +81,9 @@ impl<'a> KeyBindBar<'a> {
             [
                 table::column(
                     text("Binding").center(),
-                    |(bind, _): (&KeyBind, &TTermAction)| text(bind.to_string()).center(),
+                    |(bind, _): &(KeyBind, TTermAction)| text(bind.to_string()).center(),
                 ),
-                table::column(text("Action"), |(_, action): (&KeyBind, &TTermAction)| {
+                table::column(text("Action"), |(_, action): &(KeyBind, TTermAction)| {
                     text(action.to_string()).center()
                 }),
             ],

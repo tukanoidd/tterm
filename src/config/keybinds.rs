@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use chumsky::prelude::*;
 use derive_more::Display;
 use iced::widget::pane_grid;
@@ -12,15 +10,15 @@ use crate::config::{common::SplitDirection, presets::TabConfig};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeyBindsConfig {
-    pub actions: HashMap<KeyBind, TTermAction>,
+    pub actions: Vec<(KeyBind, TTermAction)>,
 }
 
 impl Default for KeyBindsConfig {
     fn default() -> Self {
         Self {
             actions: TTermAction::default_keybinds()
-                .into_values()
-                .flat_map(|map| map.into_iter())
+                .into_iter()
+                .flat_map(|(_, map)| map.into_iter())
                 .collect(),
         }
     }

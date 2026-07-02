@@ -78,7 +78,12 @@ iced = { workspace = true, features = [
   "advanced-shaping",
   "tokio",
 ] }
-iced_aw = { workspace = true, features = ["spinner", "badge", "drop_down"] }
+iced_aw = { workspace = true, features = [
+  "spinner",
+  "badge",
+  "drop_down",
+  "context_menu",
+] }
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
 iced_term.workspace = true

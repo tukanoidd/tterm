@@ -64,7 +64,7 @@ pub fn actions(input: TokenStream) -> TokenStream {
 
                     quote!((
                         KeyBindPanelType::#name,
-                        HashMap::from_iter(
+                        Vec::from_iter(
                             #type_name::default_keybinds()
                                 .into_iter()
                                 .map(|(bind, action)| (
@@ -76,8 +76,8 @@ pub fn actions(input: TokenStream) -> TokenStream {
                 });
 
                 quote! {
-                    fn default_keybinds() -> HashMap<KeyBindPanelType, HashMap<KeyBind, TTermAction>> {
-                        HashMap::from_iter([#(#binds),*])
+                    fn default_keybinds() -> Vec<(KeyBindPanelType, Vec<(KeyBind, TTermAction)>)> {
+                        Vec::from_iter([#(#binds),*])
                     }
                 }
             };
@@ -155,7 +155,7 @@ pub fn actions(input: TokenStream) -> TokenStream {
                 );
 
                 quote! {
-                    fn default_keybinds() -> impl IntoIterator<Item = (KeyBind, #type_name)> {
+                    pub fn default_keybinds() -> impl IntoIterator<Item = (KeyBind, #type_name)> {
                         [#(#binds),*]
                     }
                 }

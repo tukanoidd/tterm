@@ -3,11 +3,11 @@ use iced::{
     Length, Padding,
     alignment::Vertical,
     widget::{
-        button, center, container, mouse_area, rich_text, row, rule, scrollable, space, span, text,
-        text_editor,
+        button, center, column, container, mouse_area, rich_text, row, rule, scrollable, space,
+        span, text, text_editor,
     },
 };
-use iced_aw::{Badge, badge};
+use iced_aw::{Badge, ContextMenu, badge};
 use iced_fonts::lucide;
 
 use crate::{
@@ -72,18 +72,21 @@ impl<'a> TabBar<'a> {
                 .on_action(AppMsg::RenameTabEditorAction)
         });
 
-        container(row([
-            toggle_show_directory_tree_button.into(),
-            space().width(Length::Fixed(15.0)).into(),
-            scrollable_tab_list,
-        ]
-        .into_iter()
-        .chain(
-            current_tab_name_editor
-                .map(|ed| [space().width(Length::Fill).into(), ed.width(300).into()])
-                .into_iter()
-                .flatten(),
-        )))
+        container(
+            row([
+                toggle_show_directory_tree_button.into(),
+                space().width(Length::Fixed(15.0)).into(),
+                scrollable_tab_list,
+            ]
+            .into_iter()
+            .chain(
+                current_tab_name_editor
+                    .map(|ed| [space().width(Length::Fill).into(), ed.width(300).into()])
+                    .into_iter()
+                    .flatten(),
+            ))
+            .align_y(Vertical::Center),
+        )
         .padding(Padding::default().top(5).horizontal(5))
         .width(Length::Fill)
         .into()
@@ -145,9 +148,33 @@ impl<'a> TabBar<'a> {
                 .style(style::tab_badge(current_tab, ind))
                 .padding(2);
 
-            mouse_area(badge)
-                .on_press(TTermTabAction::Select(ind).into())
-                .into()
+            ContextMenu::new(
+                mouse_area(badge).on_press(TTermTabAction::Select(ind).into()),
+                || {
+                    column(
+                        TTermTabAction::default_keybinds()
+                            .into_iter()
+                            .filter(|(_, action)| {
+                                matches!(
+                                    action,
+                                    TTermTabAction::CloseFocused
+                                        | TTermTabAction::FocusedToggleFloating
+                                        | TTermTabAction::FocusedTogglePaneStacking
+                                        | TTermTabAction::ToggleRename
+                                )
+                            })
+                            .map(|(_, action)| {
+                                button(text(action.to_string()))
+                                    .on_press(action.into())
+                                    .width(Length::Fixed(275.0))
+                                    .style(button::subtle)
+                                    .into()
+                            }),
+                    )
+                    .into()
+                },
+            )
+            .into()
         }
     }
 
