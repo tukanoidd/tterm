@@ -17,6 +17,9 @@ iced_fonts = "0.3"
 iced-swdir-tree = "0.9"
 # iced_term = "0.8"
 iced_term.git = "https://github.com/Harzu/iced_term"
+# Atm think its a temporary change, depending on how this will chug along with 0.15 iced and so on
+# iced_webview_v2 = { git = "https://github.com/franzos/iced_webview_v2", default-features = false }
+iced_webview_v2 = { git = "https://github.com/tukanoidd/iced_webview_v2", branch = "latest_servo", default-features = false }
 
 directories = "6.0"
 shellexpand = "3.1"
@@ -24,6 +27,7 @@ shellexpand = "3.1"
 tokio = "1.52"
 
 uuid = "1.23"
+url = "2.5"
 convert_case = "0.11"
 itertools = "0.15"
 
@@ -87,6 +91,7 @@ iced_aw = { workspace = true, features = [
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
 iced_term.workspace = true
+iced_webview_v2 = { workspace = true, features = ["servo"] }
 
 directories.workspace = true
 shellexpand.workspace = true
@@ -94,6 +99,7 @@ shellexpand.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "fs"] }
 
 uuid = { workspace = true, features = ["v7"] }
+url.workspace = true
 itertools.workspace = true
 
 chumsky.workspace = true
@@ -112,3 +118,16 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 rootcause.workspace = true
 rootcause-backtrace.workspace = true
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+
+[profile.dev]
+strip = true
+opt-level = "z"
+lto = true
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -107,6 +107,30 @@
         "type": "github"
       }
     },
+    "mozjs-aarch64-linux": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-uWNUlWYv+7RWCKmytzEUVehad3BXsrCQyGSXvnXKNCY=",
+        "type": "file",
+        "url": "https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-aarch64-unknown-linux-gnu.tar.gz"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-aarch64-unknown-linux-gnu.tar.gz"
+      }
+    },
+    "mozjs-x86_64-linux": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-A9725HoCpymh1BERDCbPTNm3gxOiOImbaJbgCu+s6ZY=",
+        "type": "file",
+        "url": "https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-x86_64-unknown-linux-gnu.tar.gz"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-x86_64-unknown-linux-gnu.tar.gz"
+      }
+    },
     "nci": {
       "inputs": {
         "crane": "crane",
@@ -256,6 +280,8 @@
       "inputs": {
         "home-manager": "home-manager",
         "iced-comet": "iced-comet",
+        "mozjs-aarch64-linux": "mozjs-aarch64-linux",
+        "mozjs-x86_64-linux": "mozjs-x86_64-linux",
         "nci": "nci",
         "nixpkgs": "nixpkgs_2",
         "parts": "parts_2"

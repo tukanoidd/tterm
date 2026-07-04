@@ -43,10 +43,10 @@ actions! {
             @[Ctrl+Shift] + "9" => (8),
         ],
         #[display("Toggle Floating Panes")]
-        FocusedToggleFloating [ @[Ctrl+Shift] + "E" ],
+        FocusedToggleFloating     [ @[Ctrl+Shift] + "E" ],
         #[display("Toggle Pane stacking")]
         FocusedTogglePaneStacking [ @[Ctrl+Shift] + "S" ],
-        ToggleRename [ @[Ctrl+Shift] + "R"  ]
+        ToggleRename              [ @[Ctrl+Shift] + "R" ],
     ],
     Pane: [
         #[display("Split Pane {}", match _0 {
@@ -65,7 +65,7 @@ actions! {
             @[Alt+Shift] + @ArrowRight => (MoveFocusDirection::Right),
             @[Alt+Shift] + @ArrowUp => (MoveFocusDirection::Up),
             @[Alt+Shift] + @ArrowDown => (MoveFocusDirection::Down),
-        ]
+        ],
     ],
     General: [
         #[display("Focus {_0}")]
@@ -76,7 +76,8 @@ actions! {
             @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
         ],
         KeyBindPanelsToggle [ @[Alt+Shift] + "K" ],
-        DirectoryTreeToggle [ @[Alt+Shift] + "E"  ]
+        DirectoryTreeToggle [ @[Alt+Shift] + "E" ],
+        WebViewToggle       [ @[Alt+Shift] + "B" ],
     ]
 }
 

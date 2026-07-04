@@ -16,6 +16,15 @@
       url = "github:iced-rs/comet?rev=bb2a21dc9475b44b90bfebea57ac539502d2535b";
       flake = false;
     };
+
+    mozjs-x86_64-linux = {
+      url = "file+https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-x86_64-unknown-linux-gnu.tar.gz";
+      flake = false;
+    };
+    mozjs-aarch64-linux = {
+      url = "file+https://github.com/servo/mozjs/releases/download/mozjs-sys-v140.12.0-1-lts/libmozjs-aarch64-unknown-linux-gnu.tar.gz";
+      flake = false;
+    };
   };
 
   outputs = inputs @ {
@@ -27,12 +36,10 @@
     parts.lib.mkFlake {inherit inputs;} ({self, ...}: let
       outPkg = pkgs: self.packages.${pkgs.stdenv.hostPlatform.system}.default;
     in {
-      systems = ["x86_64-linux"];
+      systems = ["x86_64-linux" "aarch64-linux"];
       imports = [
         nci.flakeModule
         inputs.home-manager.flakeModules.home-manager
-
-        ./crates.nix
       ];
       perSystem = {
         pkgs,
@@ -50,6 +57,59 @@
           };
 
           crates.iced_comet = {};
+
+          projects.tterm = {
+            path = ./.;
+            export = true;
+          };
+          crates = {
+            tterm = let
+              commonDrvConfig = {
+                mkDerivation = {
+                  nativeBuildInputs = with pkgs; [
+                    llvm
+                    llvmPackages.libstdcxxClang
+                    pkg-config
+                    python3
+                  ];
+
+                  buildInputs = with pkgs; [
+                    rustPlatform.bindgenHook
+                    fontconfig
+                    rust-jemalloc-sys
+                    libclang.lib
+                  ];
+                };
+
+                env = {
+                  LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+
+                  NIX_CFLAGS_COMPILE = "-Wno-error=format-security";
+
+                  MOZJS_ARCHIVE = inputs."mozjs-${pkgs.stdenv.hostPlatform.system}";
+                };
+              };
+            in {
+              runtimeLibs = with pkgs; [
+                vulkan-loader
+                libGL
+
+                wayland
+                libx11
+
+                libxkbcommon
+
+                stdenv.cc.cc.lib
+                fontconfig
+                freetype
+                rust-jemalloc-sys
+              ];
+
+              drvConfig = commonDrvConfig;
+              depsDrvConfig = commonDrvConfig;
+            };
+            tterm-macros = {};
+          };
         };
 
         devShells.default = ttermOutputs.devShell.overrideAttrs (old: {

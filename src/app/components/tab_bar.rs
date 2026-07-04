@@ -25,6 +25,7 @@ pub struct TabBar<'a> {
     rename_content: &'a text_editor::Content,
 
     show_directory_tree: bool,
+    show_webview: bool,
 }
 
 #[bon]
@@ -35,6 +36,7 @@ impl<'a> TabBar<'a> {
         rename_mode: bool,
         rename_content: &'a text_editor::Content,
         show_directory_tree: bool,
+        show_webview: bool,
     ) -> Self {
         Self {
             tabs,
@@ -44,6 +46,7 @@ impl<'a> TabBar<'a> {
             rename_content,
 
             show_directory_tree,
+            show_webview,
         }
     }
 
@@ -56,6 +59,7 @@ impl<'a> TabBar<'a> {
             rename_content,
 
             show_directory_tree,
+            show_webview,
         } = self;
 
         let toggle_show_directory_tree_button = button(match show_directory_tree {
@@ -72,19 +76,26 @@ impl<'a> TabBar<'a> {
                 .on_action(AppMsg::RenameTabEditorAction)
         });
 
+        let toggle_webview_button = button(match show_webview {
+            true => lucide::search_x(),
+            false => lucide::search_slash(),
+        })
+        .style(button::subtle)
+        .on_press(TTermGeneralAction::WebViewToggle.into());
+
         container(
             row([
                 toggle_show_directory_tree_button.into(),
                 space().width(Length::Fixed(15.0)).into(),
                 scrollable_tab_list,
+                space().width(Length::Fill).into(),
             ]
             .into_iter()
-            .chain(
-                current_tab_name_editor
-                    .map(|ed| [space().width(Length::Fill).into(), ed.width(300).into()])
-                    .into_iter()
-                    .flatten(),
-            ))
+            .chain(current_tab_name_editor.map(|ed| ed.width(300).into()))
+            .chain([
+                space().width(Length::Fixed(15.0)).into(),
+                toggle_webview_button.into(),
+            ]))
             .align_y(Vertical::Center),
         )
         .padding(Padding::default().top(5).horizontal(5))

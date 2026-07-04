@@ -4,14 +4,14 @@ use std::{collections::HashMap, fmt::Display};
 
 use derive_more::From;
 use iced::{
-    Length,
+    Length, Padding,
     alignment::Horizontal,
-    keyboard::{self, Modifiers},
-    mouse,
-    widget::{self, center, column, container, row, rule, text, text_editor},
+    keyboard, mouse,
+    widget::{self, center, column, container, row, rule, stack, text, text_editor, text_input},
 };
 use iced_aw::Spinner;
 use iced_swdir_tree::{DirectoryTree, DirectoryTreeEvent};
+use iced_webview::{PageType, Servo, WebView};
 use itertools::Itertools;
 use strum::VariantArray;
 use uuid::Uuid;
@@ -39,6 +39,8 @@ pub type AppElement<'a, M = AppMsg> = iced::Element<'a, M, AppTheme, AppRenderer
 
 pub type AppTask = iced::Task<AppMsg>;
 pub type AppSubscription = iced::Subscription<AppMsg>;
+
+pub type WebViewEngine = Servo;
 
 pub struct App {
     state: AppState,
@@ -89,6 +91,10 @@ impl App {
 
                 show_directory_tree,
                 directory_tree,
+
+                show_webview,
+                webview,
+                url_input,
                 ..
             } => {
                 let directory_tree_view = show_directory_tree.then(|| {
@@ -96,9 +102,42 @@ impl App {
                         .width(Length::Fixed(400.0))
                         .into()
                 });
+
                 let tab_widget = match tabs.get(*current_tab) {
                     None => center(Spinner::new().width(20).height(20)).into(),
                     Some(tab) => tab.view(),
+                };
+                let tab_widget = row(directory_tree_view.into_iter().chain([tab_widget]));
+                let tab_widget: AppElement<'_> = match show_webview {
+                    true => stack![
+                        tab_widget,
+                        center(
+                            column![
+                                center(
+                                    text_input("Enter url...", url_input)
+                                        .on_input(AppMsg::UpdateUrlInput)
+                                        .on_submit(AppMsg::from_result(
+                                            url::Url::parse(url_input)
+                                                .map(iced_webview::Action::GoToUrl),
+                                            Into::into,
+                                            false
+                                        ),)
+                                )
+                                .height(Length::Shrink)
+                                .padding(Padding::default().horizontal(5)),
+                                webview.view().map(AppMsg::WebView)
+                            ]
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .spacing(5)
+                        )
+                        .padding(15.0)
+                        .style(|theme: &AppTheme| container::background(
+                            theme.palette().background.scale_alpha(0.5)
+                        )),
+                    ]
+                    .into(),
+                    false => tab_widget.into(),
                 };
 
                 column![
@@ -107,11 +146,12 @@ impl App {
                         *current_tab,
                         *rename_tab_mode,
                         rename_tab_content,
-                        *show_directory_tree
+                        *show_directory_tree,
+                        *show_webview,
                     )
                     .view(),
                     rule::horizontal(2),
-                    row(directory_tree_view.into_iter().chain([tab_widget])),
+                    tab_widget,
                     rule::horizontal(2),
                     KeyBindBar::new(&config.keybinds, panel_expanded).view()
                 ]
@@ -198,6 +238,8 @@ impl App {
                 };
                 let directory_tree = DirectoryTree::new(home_dir.clone()).with_prefetch_limit(1);
 
+                let default_url = config.webview.default_url.clone();
+
                 self.state = AppState::Main {
                     config,
 
@@ -211,10 +253,22 @@ impl App {
 
                     directory_tree: Box::new(directory_tree),
                     show_directory_tree: false,
+
+                    show_webview: false,
+                    webview: Box::new(
+                        WebView::new()
+                            .on_action(AppMsg::WebView)
+                            .on_create_view(AppMsg::WebViewCreatedView)
+                            .on_url_change(AppMsg::UpdateUrlInput),
+                    ),
+                    url_input: default_url.clone(),
                 };
 
                 return AppTask::batch([
                     AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(home_dir))),
+                    AppTask::done(AppMsg::WebView(iced_webview::Action::CreateView(
+                        PageType::Url(default_url),
+                    ))),
                     match new_tab_tasks.is_empty() {
                         true => AppTask::done(TTermTabAction::New(None).into()),
                         false => AppTask::batch(new_tab_tasks),
@@ -499,8 +553,51 @@ impl App {
                                 return AppTask::done(AppMsg::FocusPane(pane.id));
                             }
                         }
+                        TTermGeneralAction::WebViewToggle => {
+                            let (show_webview, tabs, current_tab) =
+                                get_main_state![show_webview, tabs, current_tab];
+                            *show_webview = !*show_webview;
+
+                            if !*show_webview
+                                && let Some((_, pane)) =
+                                    tabs.get(*current_tab).and_then(|t| t.focused_pane())
+                            {
+                                return AppTask::done(AppMsg::FocusPane(pane.id));
+                            }
+                        }
                     },
                 }
+            }
+
+            AppMsg::WebViewCreatedView => {
+                let (webview, url_input) = get_main_state![webview, url_input];
+                *url_input = webview.current_url().into();
+
+                return AppTask::done(iced_webview::Action::ChangeView(0).into());
+            }
+            AppMsg::WebView(mut action) => {
+                let (webview, config) = get_main_state![webview, config];
+
+                if let iced_webview::Action::SendMouseEvent(
+                    mouse::Event::WheelScrolled { delta },
+                    _,
+                ) = &mut action
+                {
+                    match delta {
+                        mouse::ScrollDelta::Lines { y, .. } => {
+                            *y *= config.webview.scroll_acceleration;
+                        }
+                        mouse::ScrollDelta::Pixels { y, .. } => {
+                            *y *= config.webview.scroll_acceleration;
+                        }
+                    }
+                }
+
+                return webview.update(action);
+            }
+            AppMsg::UpdateUrlInput(new_url) => {
+                let url_input = get_main_state!(url_input);
+                *url_input = new_url;
             }
 
             AppMsg::IcedEvent(event) => match event {
@@ -510,11 +607,22 @@ impl App {
                     ..
                 }) => {
                     let (rename_tab_mode, current_tab) =
-                        get_main_state!(rename_tab_mode, current_tab);
+                        get_main_state![rename_tab_mode, current_tab];
 
                     if *rename_tab_mode {
                         *rename_tab_mode = false;
                         return AppTask::done(TTermTabAction::Select(*current_tab).into());
+                    }
+                }
+                iced::Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(keyboard::key::Named::F5),
+                    repeat: false,
+                    ..
+                }) => {
+                    let show_webview = get_main_state![show_webview];
+
+                    if *show_webview {
+                        return AppTask::done(iced_webview::Action::Refresh.into());
                     }
                 }
                 iced::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
@@ -566,7 +674,14 @@ impl App {
     }
 
     pub fn subscription(&self) -> AppSubscription {
-        let AppState::Main { tabs, config, .. } = &self.state else {
+        let AppState::Main {
+            tabs,
+            config,
+            webview,
+            show_webview,
+            ..
+        } = &self.state
+        else {
             return AppSubscription::none();
         };
 
@@ -586,113 +701,129 @@ impl App {
                         })
                         .collect::<Vec<_>>(),
                     config.general.reactive_panels,
+                    *show_webview,
                 ))
-                .map(|((binds, reactive_panels), event)| match event {
-                    iced::Event::Keyboard(keyboard_event) => match keyboard_event {
-                        keyboard::Event::KeyPressed {
-                            key,
-                            modified_key,
-                            physical_key,
-                            location,
-                            modifiers,
-                            text,
-                            repeat,
-                        } => {
-                            vec![
-                                (!repeat)
-                                    .then(|| {
-                                        binds.into_iter().find_map(
-                                            |(
-                                                _,
-                                                KeyBind {
-                                                    key: bind_key,
-                                                    modifiers: bind_modifiers,
+                .map(
+                    |((binds, reactive_panels, show_webview), event)| match event {
+                        iced::Event::Keyboard(keyboard_event) => match keyboard_event {
+                            keyboard::Event::KeyPressed {
+                                key,
+                                modified_key,
+                                physical_key,
+                                location,
+                                modifiers,
+                                text,
+                                repeat,
+                            } => {
+                                vec![
+                                    (!repeat)
+                                        .then(|| {
+                                            binds.into_iter().find_map(
+                                                |(
+                                                    _,
+                                                    KeyBind {
+                                                        key: bind_key,
+                                                        modifiers: bind_modifiers,
+                                                    },
+                                                    action,
+                                                )| {
+                                                    let iced_key: iced::keyboard::Key =
+                                                        bind_key.into();
+                                                    let iced_modifiers =
+                                                        bind_modifiers.into_iter().fold(
+                                                            keyboard::Modifiers::empty(),
+                                                            |mods, mod_| match mod_ {
+                                                                Modifier::Ctrl => {
+                                                                    mods | keyboard::Modifiers::CTRL
+                                                                }
+                                                                Modifier::Shift => {
+                                                                    mods
+                                                                        | keyboard::Modifiers::SHIFT
+                                                                }
+                                                                Modifier::Alt => {
+                                                                    mods | keyboard::Modifiers::ALT
+                                                                }
+                                                            },
+                                                        );
+
+                                                    ([&key, &modified_key].contains(&&iced_key)
+                                                        && iced_modifiers == modifiers)
+                                                        .then_some(AppMsg::Action(action))
                                                 },
-                                                action,
-                                            )| {
-                                                let iced_key: iced::keyboard::Key = bind_key.into();
-                                                let iced_modifiers = bind_modifiers
-                                                    .into_iter()
-                                                    .fold(Modifiers::empty(), |mods, mod_| {
-                                                        match mod_ {
-                                                            Modifier::Ctrl => {
-                                                                mods | Modifiers::CTRL
-                                                            }
-                                                            Modifier::Shift => {
-                                                                mods | Modifiers::SHIFT
-                                                            }
-                                                            Modifier::Alt => mods | Modifiers::ALT,
-                                                        }
-                                                    });
-
-                                                ([&key, &modified_key].contains(&&iced_key)
-                                                    && iced_modifiers == modifiers)
-                                                    .then_some(AppMsg::Action(action))
+                                            )
+                                        })
+                                        .flatten()
+                                        .and_then(|msg| match show_webview {
+                                            true => match msg {
+                                                AppMsg::Action(TTermAction::General(
+                                                    TTermGeneralAction::KeyBindPanelsToggle
+                                                    | TTermGeneralAction::WebViewToggle,
+                                                )) => Some(msg),
+                                                _ => None,
                                             },
-                                        )
-                                    })
-                                    .flatten()
-                                    .unwrap_or_else(|| {
-                                        AppMsg::IcedEvent(iced::Event::Keyboard(
-                                            iced::keyboard::Event::KeyPressed {
-                                                key,
-                                                modified_key,
-                                                physical_key,
-                                                location,
-                                                modifiers,
-                                                text,
-                                                repeat,
-                                            },
-                                        ))
-                                    }),
-                            ]
-                        }
-                        keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
-                            true => {
-                                let changed_mods = modifiers
-                                    .iter()
-                                    .filter_map(|m| match m {
-                                        Modifiers::SHIFT => Some(Modifier::Shift),
-                                        Modifiers::CTRL => Some(Modifier::Ctrl),
-                                        Modifiers::ALT => Some(Modifier::Alt),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>();
-
-                                binds
-                                    .into_iter()
-                                    .map(|(t, b, _)| (b, t))
-                                    .unique()
-                                    .map(|(b, ty)| {
-                                        let open =
-                                            b.modifiers.iter().any(|m| changed_mods.contains(m));
-
-                                        AppMsg::PanelToggle {
-                                            ty,
-                                            force: Some(open),
-                                        }
-                                    })
-                                    .collect::<Vec<_>>()
+                                            false => Some(msg),
+                                        })
+                                        .unwrap_or_else(|| {
+                                            AppMsg::IcedEvent(iced::Event::Keyboard(
+                                                iced::keyboard::Event::KeyPressed {
+                                                    key,
+                                                    modified_key,
+                                                    physical_key,
+                                                    location,
+                                                    modifiers,
+                                                    text,
+                                                    repeat,
+                                                },
+                                            ))
+                                        }),
+                                ]
                             }
-                            false => {
-                                vec![]
-                            }
+                            keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
+                                true => {
+                                    let changed_mods = modifiers
+                                        .iter()
+                                        .filter_map(|m| match m {
+                                            keyboard::Modifiers::SHIFT => Some(Modifier::Shift),
+                                            keyboard::Modifiers::CTRL => Some(Modifier::Ctrl),
+                                            keyboard::Modifiers::ALT => Some(Modifier::Alt),
+                                            _ => None,
+                                        })
+                                        .collect::<Vec<_>>();
+
+                                    binds
+                                        .into_iter()
+                                        .map(|(t, b, _)| (b, t))
+                                        .unique()
+                                        .map(|(b, ty)| {
+                                            let open = b
+                                                .modifiers
+                                                .iter()
+                                                .any(|m| changed_mods.contains(m));
+
+                                            AppMsg::PanelToggle {
+                                                ty,
+                                                force: Some(open),
+                                            }
+                                        })
+                                        .collect::<Vec<_>>()
+                                }
+                                false => {
+                                    vec![]
+                                }
+                            },
+                            ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
                         },
-                        ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
+                        _ => vec![AppMsg::IcedEvent(event)],
                     },
-                    _ => vec![AppMsg::IcedEvent(event)],
-                });
-        let tab_subscriptions = tabs
-            .iter()
-            .map(Tab::subscription)
-            .map(|s| s.map(|m| vec![m]));
+                );
+        let tab_subscriptions = AppSubscription::batch(tabs.iter().map(Tab::subscription));
+        let webview_subscription = webview.subscription().map(Into::into);
 
-        AppSubscription::batch(
-            [keybind_subscription]
-                .into_iter()
-                .chain(tab_subscriptions)
-                .map(|s| s.map(Into::into)),
-        )
+        AppSubscription::batch([
+            keybind_subscription.map(Into::into),
+            tab_subscriptions,
+            webview_subscription,
+        ])
     }
 
     fn load_config() -> AppTask {
@@ -717,6 +848,10 @@ pub enum AppState {
 
         show_directory_tree: bool,
         directory_tree: Box<DirectoryTree>,
+
+        show_webview: bool,
+        webview: Box<WebView<WebViewEngine, AppMsg>>,
+        url_input: String,
     },
 }
 
@@ -757,6 +892,10 @@ pub enum AppMsg {
 
     #[from(skip)]
     Action(TTermAction),
+
+    WebViewCreatedView,
+    WebView(iced_webview::Action),
+    UpdateUrlInput(String),
 
     IcedEvent(iced::Event),
 }

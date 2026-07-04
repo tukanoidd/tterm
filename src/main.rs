@@ -30,6 +30,7 @@ fn main() -> Result<()> {
         preset,
         print_default_config,
         log_level,
+        ..
     } = Cli::parse();
     let _ = CLI_PRESET.set(preset);
 
@@ -81,7 +82,20 @@ fn init_rootcause() -> Result<()> {
 
 fn init_tracing(log_level: LogLevel) -> Result<()> {
     const EXTERNAL_LEVELS: &[(&str, &[&str])] = &[
-        ("error", &["wgpu_hal"]),
+        (
+            "error",
+            &[
+                "wgpu_hal",
+                "usvg",
+                "script",
+                "net",
+                "webrender",
+                "storage",
+                "servo_constellation",
+                "profile_traits",
+                "mozjs",
+            ],
+        ),
         (
             "warn",
             &[
@@ -96,6 +110,23 @@ fn init_tracing(log_level: LogLevel) -> Result<()> {
                 "vte",
                 "calloop",
                 "zbus",
+                "style",
+                "selectors",
+                "layout",
+                "hyper_util",
+                "Connection",
+                "h2",
+                "rustls",
+                "fonts",
+                "html5ever",
+                "wr_glyph_rasterizer",
+                "profile",
+                "webgl",
+                "pixels",
+                "paint",
+                "surfman",
+                "winit",
+                "servo",
             ],
         ),
     ];

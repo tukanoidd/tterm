@@ -3,6 +3,7 @@ pub mod general;
 pub mod keybinds;
 pub mod presets;
 pub mod terminal;
+pub mod webview;
 
 use directories::ProjectDirs;
 use rootcause::{Result, option_ext::OptionExt};
@@ -12,7 +13,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::config::{
     general::GeneralConfig, keybinds::KeyBindsConfig, presets::PresetsConfig,
-    terminal::TerminalConfig,
+    terminal::TerminalConfig, webview::WebViewConfig,
 };
 
 #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +23,7 @@ pub struct Config {
     pub presets: PresetsConfig,
     pub terminal: TerminalConfig,
     pub keybinds: KeyBindsConfig,
+    pub webview: WebViewConfig,
 }
 
 impl Config {

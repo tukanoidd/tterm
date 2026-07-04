@@ -3,6 +3,7 @@ use derive_more::Display;
 
 /// Terminal emulator with multiplexing built-in
 #[derive(Parser)]
+#[command(author, version, about, long_about = None, ignore_errors = true)]
 pub struct Cli {
     #[arg(short, long)]
     pub preset: Option<String>,
