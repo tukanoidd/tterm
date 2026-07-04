@@ -4,79 +4,64 @@ use iced::{
     alignment::Vertical,
     widget::{
         button, center, column, container, mouse_area, rich_text, row, rule, scrollable, space,
-        span, text, text_editor,
+        span, text, text_input,
     },
 };
 use iced_aw::{Badge, ContextMenu, badge};
 use iced_fonts::lucide;
 
 use crate::{
-    app::{AppElement, AppMsg, AppRenderer, AppTheme},
+    app::{
+        AppElement, AppMsg, AppRenderer, AppTheme,
+        state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
+    },
     config::keybinds::{TTermGeneralAction, TTermTabAction},
     fonts,
     multiplex::tab::Tab,
 };
 
 pub struct TabBar<'a> {
-    tabs: &'a [Tab],
-    current_tab: usize,
-
-    rename_mode: bool,
-    rename_content: &'a text_editor::Content,
-
-    show_directory_tree: bool,
-    show_webview: bool,
+    tabs: &'a TabsState,
+    directory_tree: &'a DirectoryTreeState,
+    webview: &'a WebViewState,
 }
 
 #[bon]
 impl<'a> TabBar<'a> {
     pub fn new(
-        tabs: &'a [Tab],
-        current_tab: usize,
-        rename_mode: bool,
-        rename_content: &'a text_editor::Content,
-        show_directory_tree: bool,
-        show_webview: bool,
+        tabs: &'a TabsState,
+        directory_tree: &'a DirectoryTreeState,
+        webview: &'a WebViewState,
     ) -> Self {
         Self {
             tabs,
-            current_tab,
-
-            rename_mode,
-            rename_content,
-
-            show_directory_tree,
-            show_webview,
+            directory_tree,
+            webview,
         }
     }
 
     pub fn view(self) -> AppElement<'a> {
         let Self {
             tabs,
-            current_tab,
-
-            rename_mode,
-            rename_content,
-
-            show_directory_tree,
-            show_webview,
+            directory_tree,
+            webview,
         } = self;
 
-        let toggle_show_directory_tree_button = button(match show_directory_tree {
+        let toggle_show_directory_tree_button = button(match directory_tree.show {
             true => lucide::panel_left_open(),
             false => lucide::panel_left_close(),
         })
         .style(button::subtle)
         .on_press(TTermGeneralAction::DirectoryTreeToggle.into());
 
-        let scrollable_tab_list = Self::tab_list(tabs, current_tab, rename_mode);
-        let current_tab_name_editor = rename_mode.then(|| {
-            text_editor(rename_content)
+        let scrollable_tab_list = Self::tab_list(tabs);
+        let current_tab_name_editor = tabs.rename_mode.then(|| {
+            text_input("Enter Tab Name...", &tabs.rename_content)
                 .id("rename-tab-editor")
-                .on_action(AppMsg::RenameTabEditorAction)
+                .on_input(AppMsg::RenameTabInput)
         });
 
-        let toggle_webview_button = button(match show_webview {
+        let toggle_webview_button = button(match webview.show {
             true => lucide::search_x(),
             false => lucide::search_slash(),
         })
@@ -103,12 +88,13 @@ impl<'a> TabBar<'a> {
         .into()
     }
 
-    fn tab_list(tabs: &'a [Tab], current_tab: usize, rename_mode: bool) -> AppElement<'a> {
+    fn tab_list(tabs: &'a TabsState) -> AppElement<'a> {
         scrollable(
             row(tabs
+                .tabs
                 .iter()
                 .enumerate()
-                .map(Self::tab_badge(current_tab, rename_mode))
+                .map(Self::tab_badge(tabs.current, tabs.rename_mode))
                 .chain([rule::vertical(2).into(), Self::new_tab_badge()]))
             .align_y(Vertical::Center)
             .height(Length::Shrink)

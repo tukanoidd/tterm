@@ -1,24 +1,27 @@
 pub mod components;
+pub mod state;
 
 use std::{collections::HashMap, fmt::Display};
 
 use derive_more::From;
 use iced::{
-    Length, Padding,
+    Length,
     alignment::Horizontal,
     keyboard, mouse,
-    widget::{self, center, column, container, row, rule, stack, text, text_editor, text_input},
+    widget::{self, center, column, row, rule, stack, text},
 };
 use iced_aw::Spinner;
-use iced_swdir_tree::{DirectoryTree, DirectoryTreeEvent};
-use iced_webview::{PageType, Servo, WebView};
+use iced_swdir_tree::DirectoryTreeEvent;
 use itertools::Itertools;
 use strum::VariantArray;
 use uuid::Uuid;
 
 use crate::{
     CLI_PRESET,
-    app::components::{keybind_bar::KeyBindBar, tab_bar::TabBar},
+    app::{
+        components::{keybind_bar::KeyBindBar, tab_bar::TabBar, webview_modal::WebViewModal},
+        state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
+    },
     config::{
         Config,
         keybinds::{
@@ -29,7 +32,7 @@ use crate::{
     },
     multiplex::{
         pane::{IdPaneMessage, PaneMessage},
-        tab::{Tab, TabPanesType},
+        tab::Tab,
     },
 };
 
@@ -39,8 +42,6 @@ pub type AppElement<'a, M = AppMsg> = iced::Element<'a, M, AppTheme, AppRenderer
 
 pub type AppTask = iced::Task<AppMsg>;
 pub type AppSubscription = iced::Subscription<AppMsg>;
-
-pub type WebViewEngine = Servo;
 
 pub struct App {
     state: AppState,
@@ -63,7 +64,7 @@ impl App {
     pub fn theme(&self) -> AppTheme {
         match &self.state {
             AppState::LoadingConfig => AppTheme::Dark,
-            AppState::Main { config, .. } => config.general.theme.into(),
+            AppState::Main(state) => state.config.general.theme.into(),
         }
     }
 
@@ -78,80 +79,33 @@ impl App {
             )
             .into(),
 
-            AppState::Main {
-                tabs,
-                current_tab,
+            AppState::Main(state) => {
+                let MainState {
+                    config,
 
-                rename_tab_mode,
-                rename_tab_content,
+                    directory_tree_state,
+                    tabs_state,
+                    webview_state,
 
-                config,
+                    panel_expanded,
+                } = state.as_ref();
 
-                panel_expanded,
+                let directory_tree_view = directory_tree_state.view();
 
-                show_directory_tree,
-                directory_tree,
-
-                show_webview,
-                webview,
-                url_input,
-                ..
-            } => {
-                let directory_tree_view = show_directory_tree.then(|| {
-                    container(directory_tree.view(AppMsg::DirectoryTree))
-                        .width(Length::Fixed(400.0))
-                        .into()
-                });
-
-                let tab_widget = match tabs.get(*current_tab) {
-                    None => center(Spinner::new().width(20).height(20)).into(),
-                    Some(tab) => tab.view(),
-                };
-                let tab_widget = row(directory_tree_view.into_iter().chain([tab_widget]));
-                let tab_widget: AppElement<'_> = match show_webview {
-                    true => stack![
-                        tab_widget,
-                        center(
-                            column![
-                                center(
-                                    text_input("Enter url...", url_input)
-                                        .on_input(AppMsg::UpdateUrlInput)
-                                        .on_submit(AppMsg::from_result(
-                                            url::Url::parse(url_input)
-                                                .map(iced_webview::Action::GoToUrl),
-                                            Into::into,
-                                            false
-                                        ),)
-                                )
-                                .height(Length::Shrink)
-                                .padding(Padding::default().horizontal(5)),
-                                webview.view().map(AppMsg::WebView)
-                            ]
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .spacing(5)
-                        )
-                        .padding(15.0)
-                        .style(|theme: &AppTheme| container::background(
-                            theme.palette().background.scale_alpha(0.5)
-                        )),
-                    ]
-                    .into(),
-                    false => tab_widget.into(),
-                };
+                let tab_widget = tabs_state.view();
+                let dir_tree_tab_widget = row(directory_tree_view.into_iter().chain([tab_widget]));
+                let dir_tree_tab_widget_opt_webview: AppElement<'_> =
+                    match WebViewModal::new(webview_state).view() {
+                        Some(webview_modal_element) => {
+                            stack![dir_tree_tab_widget, webview_modal_element,].into()
+                        }
+                        None => dir_tree_tab_widget.into(),
+                    };
 
                 column![
-                    TabBar::new(
-                        tabs,
-                        *current_tab,
-                        *rename_tab_mode,
-                        rename_tab_content,
-                        *show_directory_tree,
-                        *show_webview,
-                    )
-                    .view(),
+                    TabBar::new(tabs_state, directory_tree_state, webview_state).view(),
                     rule::horizontal(2),
-                    tab_widget,
+                    dir_tree_tab_widget_opt_webview,
                     rule::horizontal(2),
                     KeyBindBar::new(&config.keybinds, panel_expanded).view()
                 ]
@@ -167,15 +121,19 @@ impl App {
     pub fn update(&mut self, msg: AppMsg) -> AppTask {
         macro_rules! get_main_state {
             ($($param:ident),+) => {{
-                let AppState::Main {
-                    $($param,)+ ..
-                } = &mut self.state
-                else {
-                    tracing::warn!("Not in main state...");
-                    return AppTask::none();
-                };
+                match &mut self.state {
+                    AppState::Main(state) => {
+                        let MainState {
+                            $($param,)+ ..
+                        } = state.as_mut();
 
-                ($($param),+)
+                        ($($param),+)
+                    },
+                    _ => {
+                        tracing::warn!("Not in main state...");
+                        return AppTask::none();
+                    }
+                }
             }};
         }
 
@@ -236,39 +194,23 @@ impl App {
                         });
                     }
                 };
-                let directory_tree = DirectoryTree::new(home_dir.clone()).with_prefetch_limit(1);
 
-                let default_url = config.webview.default_url.clone();
+                let (webview_state, webview_init_task) =
+                    WebViewState::new(&config.webview.default_url);
 
-                self.state = AppState::Main {
+                self.state = AppState::Main(Box::new(MainState {
                     config,
 
-                    tabs: vec![],
-                    current_tab: 0,
-
-                    rename_tab_mode: false,
-                    rename_tab_content: text_editor::Content::new(),
+                    directory_tree_state: DirectoryTreeState::new(home_dir.clone()),
+                    tabs_state: TabsState::default(),
+                    webview_state,
 
                     panel_expanded: HashMap::new(),
-
-                    directory_tree: Box::new(directory_tree),
-                    show_directory_tree: false,
-
-                    show_webview: false,
-                    webview: Box::new(
-                        WebView::new()
-                            .on_action(AppMsg::WebView)
-                            .on_create_view(AppMsg::WebViewCreatedView)
-                            .on_url_change(AppMsg::UpdateUrlInput),
-                    ),
-                    url_input: default_url.clone(),
-                };
+                }));
 
                 return AppTask::batch([
                     AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(home_dir))),
-                    AppTask::done(AppMsg::WebView(iced_webview::Action::CreateView(
-                        PageType::Url(default_url),
-                    ))),
+                    webview_init_task,
                     match new_tab_tasks.is_empty() {
                         true => AppTask::done(TTermTabAction::New(None).into()),
                         false => AppTask::batch(new_tab_tasks),
@@ -277,35 +219,21 @@ impl App {
             }
 
             AppMsg::UpdateFocusedDirectoryTree => {
-                let (tabs, current_tab, directory_tree) =
-                    get_main_state![tabs, current_tab, directory_tree];
-                let Some((_, focused_pane)) = tabs.get(*current_tab).and_then(|t| t.focused_pane())
-                else {
+                let (tabs, directory_tree) = get_main_state![tabs_state, directory_tree_state];
+                let Some((_, focused_pane)) = tabs.focused_pane() else {
                     return AppTask::none();
                 };
 
-                **directory_tree =
-                    DirectoryTree::new(focused_pane.pwd.clone()).with_prefetch_limit(1);
-
-                return AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(
-                    focused_pane.pwd.clone(),
-                )));
+                return directory_tree.update_path(focused_pane);
             }
             AppMsg::DirectoryTree(event) => {
-                let directory_tree = get_main_state![directory_tree];
-
-                return directory_tree.update(event).map(AppMsg::DirectoryTree);
+                let directory_tree = get_main_state![directory_tree_state];
+                return directory_tree.update(event);
             }
 
-            AppMsg::RenameTabEditorAction(action) => {
-                let rename_tab_content = get_main_state![rename_tab_content];
-
-                match action {
-                    text_editor::Action::Edit(text_editor::Edit::Enter) => {
-                        return AppTask::done(AppMsg::RenameCurrentTab(rename_tab_content.text()));
-                    }
-                    action => rename_tab_content.perform(action),
-                }
+            AppMsg::RenameTabInput(new_input) => {
+                let tabs = get_main_state![tabs_state];
+                tabs.rename_input(new_input);
             }
             AppMsg::RenameCurrentTab(new_name) => {
                 let new_name = new_name.trim();
@@ -314,69 +242,26 @@ impl App {
                     return AppTask::none();
                 }
 
-                let (tabs, current_tab, rename_tab_mode) =
-                    get_main_state![tabs, current_tab, rename_tab_mode];
+                let tabs = get_main_state![tabs_state];
 
-                let Some(tab) = tabs.get_mut(*current_tab) else {
-                    return AppTask::none();
-                };
-
-                tab.name = Some(new_name.into());
-                *rename_tab_mode = false;
-
-                return AppTask::done(TTermTabAction::Select(*current_tab).into());
+                return tabs.rename_current_tab(new_name);
             }
             AppMsg::CloseTab(id) => {
-                let (tabs, current_tab) = get_main_state![tabs, current_tab];
-
-                let Some(tab) = tabs
-                    .iter()
-                    .enumerate()
-                    .find_map(|(ind, tab)| (tab.id == id).then_some(ind))
-                else {
-                    return AppTask::none();
-                };
-
-                tabs.remove(tab);
-
-                *current_tab = tab.saturating_sub(1);
-
-                if tabs.is_empty() {
-                    return iced::exit();
-                }
-
-                return AppTask::done(
-                    TTermTabAction::Select(tab.saturating_sub(1.clamp(0, tabs.len()))).into(),
-                );
+                let tabs = get_main_state![tabs_state];
+                return tabs.close(id);
             }
             AppMsg::TabResetFloating(id) => {
-                let tabs = get_main_state![tabs];
-                let Some(tab) = tabs.iter_mut().find(|t| t.id == id) else {
-                    return AppTask::none();
-                };
-
-                tab.panes.remove(&TabPanesType::Floating);
-
-                return AppTask::done(TTermTabAction::FocusedToggleFloating.into());
+                let tabs = get_main_state![tabs_state];
+                return tabs.reset_floating(id);
             }
             AppMsg::FocusPane(id) => {
-                let (tabs, current_tab) = get_main_state![tabs, current_tab];
-                let Some(tab) = tabs.get_mut(*current_tab) else {
-                    return AppTask::none();
-                };
-
-                return tab
-                    .focus_pane(id)
-                    .chain(AppTask::done(AppMsg::UpdateFocusedDirectoryTree));
+                let tabs = get_main_state![tabs_state];
+                return tabs.focus_pane(id);
             }
 
             AppMsg::Pane(pane_msg) => {
-                let tabs = get_main_state![tabs];
-
-                return tabs
-                    .iter_mut()
-                    .find_map(|t| t.update_pane(&pane_msg))
-                    .unwrap_or_else(AppTask::none);
+                let tabs = get_main_state![tabs_state];
+                return tabs.update_pane(pane_msg);
             }
 
             AppMsg::PanelToggle { ty, force } => {
@@ -387,8 +272,7 @@ impl App {
             }
 
             AppMsg::Action(tterm_action) => {
-                let (tabs, current_tab, config, rename_tab_content) =
-                    get_main_state![tabs, current_tab, config, rename_tab_content];
+                let (config, tabs) = get_main_state![config, tabs_state];
 
                 match tterm_action {
                     TTermAction::Tab(act) => match act {
@@ -408,30 +292,28 @@ impl App {
                                 }
                             };
 
-                            tabs.push(tab);
+                            tabs.tabs.push(tab);
 
                             return AppTask::batch([
-                                AppTask::done(TTermTabAction::Select(tabs.len() - 1).into()),
+                                AppTask::done(TTermTabAction::Select(tabs.tabs.len() - 1).into()),
                                 task,
                             ]);
                         }
                         TTermTabAction::CloseFocused => {
-                            return AppTask::done(AppMsg::CloseTab(tabs[*current_tab].id));
+                            return AppTask::done(AppMsg::CloseTab(tabs.tabs[tabs.current].id));
                         }
                         TTermTabAction::Select(index) => {
-                            let index = index.clamp(0, tabs.len().saturating_sub(1));
+                            let index = index.clamp(0, tabs.tabs.len().saturating_sub(1));
 
-                            *current_tab = index;
+                            tabs.current = index;
 
-                            if tabs.is_empty() {
+                            if tabs.tabs.is_empty() {
                                 return AppTask::none();
                             }
 
-                            let current_tab = &mut tabs[*current_tab];
+                            let current_tab = &mut tabs.tabs[tabs.current];
 
-                            *rename_tab_content = text_editor::Content::with_text(
-                                current_tab.name.as_deref().unwrap_or_default(),
-                            );
+                            tabs.rename_content = current_tab.name.clone().unwrap_or_default();
 
                             let Some((_, pane_state)) = current_tab
                                 .panes
@@ -444,29 +326,29 @@ impl App {
                             return AppTask::done(AppMsg::FocusPane(pane_state.id));
                         }
                         TTermTabAction::FocusedToggleFloating => {
-                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                            let Some(current_tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
                             return current_tab.toggle_floating(&config.terminal, &config.keybinds);
                         }
                         TTermTabAction::FocusedTogglePaneStacking => {
-                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                            let Some(current_tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
                             current_tab.toggle_stacking();
                         }
                         TTermTabAction::ToggleRename => {
-                            let rename_tab_mode = get_main_state!(rename_tab_mode);
-                            *rename_tab_mode = true;
+                            let tabs = get_main_state!(tabs_state);
+                            tabs.rename_mode = true;
 
                             return widget::operation::focus("rename-tab-editor");
                         }
                     },
                     TTermAction::Pane(act) => match act {
                         TTermPaneAction::SplitFocused(direction) => {
-                            let Some(current_tab) = tabs.get_mut(*current_tab) else {
+                            let Some(current_tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
@@ -483,14 +365,14 @@ impl App {
                             };
                         }
                         TTermPaneAction::CloseFocused => {
-                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                            let Some(tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
                             return tab.close_focused_pane();
                         }
                         TTermPaneAction::MoveFocused(direction) => {
-                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                            let Some(tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
@@ -499,7 +381,7 @@ impl App {
                     },
                     TTermAction::General(act) => match act {
                         TTermGeneralAction::Focus(direction) => {
-                            let Some(tab) = tabs.get_mut(*current_tab) else {
+                            let Some(tab) = tabs.current_tab_mut() else {
                                 return AppTask::none();
                             };
 
@@ -508,9 +390,9 @@ impl App {
                                 None => match direction {
                                     MoveFocusDirection::Left => {
                                         return AppTask::done(
-                                            TTermTabAction::Select(match current_tab {
-                                                0 => tabs.len() - 1,
-                                                _ => *current_tab - 1,
+                                            TTermTabAction::Select(match tabs.current {
+                                                0 => tabs.tabs.len() - 1,
+                                                _ => tabs.current - 1,
                                             })
                                             .into(),
                                         );
@@ -518,9 +400,9 @@ impl App {
                                     MoveFocusDirection::Right => {
                                         return AppTask::done(
                                             TTermTabAction::Select(
-                                                match *current_tab >= tabs.len() - 1 {
+                                                match tabs.current >= tabs.tabs.len() - 1 {
                                                     true => 0,
-                                                    false => *current_tab + 1,
+                                                    false => tabs.current + 1,
                                                 },
                                             )
                                             .into(),
@@ -543,26 +425,25 @@ impl App {
                             }));
                         }
                         TTermGeneralAction::DirectoryTreeToggle => {
-                            let (show_directory_tree, tabs, current_tab) =
-                                get_main_state!(show_directory_tree, tabs, current_tab);
-                            *show_directory_tree = !*show_directory_tree;
+                            let (directory_tree, tabs) =
+                                get_main_state!(directory_tree_state, tabs_state);
+                            directory_tree.show = !directory_tree.show;
 
                             if let Some((_, pane)) =
-                                tabs.get(*current_tab).and_then(|t| t.focused_pane())
+                                tabs.current_tab().and_then(|t| t.focused_pane())
                             {
                                 return AppTask::done(AppMsg::FocusPane(pane.id));
                             }
                         }
                         TTermGeneralAction::WebViewToggle => {
-                            let (show_webview, tabs, current_tab) =
-                                get_main_state![show_webview, tabs, current_tab];
-                            *show_webview = !*show_webview;
+                            let (tabs, webview) = get_main_state![tabs_state, webview_state];
 
-                            if !*show_webview
-                                && let Some((_, pane)) =
-                                    tabs.get(*current_tab).and_then(|t| t.focused_pane())
-                            {
-                                return AppTask::done(AppMsg::FocusPane(pane.id));
+                            if let Some(after_toggle) = webview.toggle(
+                                tabs.current_tab()
+                                    .and_then(|t| t.focused_pane())
+                                    .map(|x| x.1.id),
+                            ) {
+                                return after_toggle;
                             }
                         }
                     },
@@ -570,34 +451,16 @@ impl App {
             }
 
             AppMsg::WebViewCreatedView => {
-                let (webview, url_input) = get_main_state![webview, url_input];
-                *url_input = webview.current_url().into();
-
-                return AppTask::done(iced_webview::Action::ChangeView(0).into());
+                let webview = get_main_state![webview_state];
+                return webview.created_view();
             }
-            AppMsg::WebView(mut action) => {
-                let (webview, config) = get_main_state![webview, config];
-
-                if let iced_webview::Action::SendMouseEvent(
-                    mouse::Event::WheelScrolled { delta },
-                    _,
-                ) = &mut action
-                {
-                    match delta {
-                        mouse::ScrollDelta::Lines { y, .. } => {
-                            *y *= config.webview.scroll_acceleration;
-                        }
-                        mouse::ScrollDelta::Pixels { y, .. } => {
-                            *y *= config.webview.scroll_acceleration;
-                        }
-                    }
-                }
-
-                return webview.update(action);
+            AppMsg::WebView(action) => {
+                let (webview, config) = get_main_state![webview_state, config];
+                return webview.action(action, &config.webview);
             }
             AppMsg::UpdateUrlInput(new_url) => {
-                let url_input = get_main_state!(url_input);
-                *url_input = new_url;
+                let webview = get_main_state![webview_state];
+                webview.update_url_input(new_url);
             }
 
             AppMsg::IcedEvent(event) => match event {
@@ -606,12 +469,11 @@ impl App {
                     repeat: false,
                     ..
                 }) => {
-                    let (rename_tab_mode, current_tab) =
-                        get_main_state![rename_tab_mode, current_tab];
+                    let tabs = get_main_state![tabs_state];
 
-                    if *rename_tab_mode {
-                        *rename_tab_mode = false;
-                        return AppTask::done(TTermTabAction::Select(*current_tab).into());
+                    if tabs.rename_mode {
+                        tabs.rename_mode = false;
+                        return AppTask::done(TTermTabAction::Select(tabs.current).into());
                     }
                 }
                 iced::Event::Keyboard(keyboard::Event::KeyPressed {
@@ -619,21 +481,17 @@ impl App {
                     repeat: false,
                     ..
                 }) => {
-                    let show_webview = get_main_state![show_webview];
-
-                    if *show_webview {
-                        return AppTask::done(iced_webview::Action::Refresh.into());
-                    }
+                    let webview = get_main_state![webview_state];
+                    return webview.refresh();
                 }
                 iced::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                    let (tabs, current_tab, rename_tab_mode, config) =
-                        get_main_state![tabs, current_tab, rename_tab_mode, config];
+                    let (tabs, config) = get_main_state![tabs_state, config];
 
-                    if *rename_tab_mode {
+                    if tabs.rename_mode {
                         return AppTask::none();
                     }
 
-                    let Some(current_tab) = tabs.get(*current_tab) else {
+                    let Some(current_tab) = tabs.current_tab() else {
                         return AppTask::none();
                     };
 
@@ -674,16 +532,15 @@ impl App {
     }
 
     pub fn subscription(&self) -> AppSubscription {
-        let AppState::Main {
-            tabs,
-            config,
-            webview,
-            show_webview,
-            ..
-        } = &self.state
-        else {
+        let AppState::Main(state) = &self.state else {
             return AppSubscription::none();
         };
+        let MainState {
+            config,
+            tabs_state,
+            webview_state,
+            ..
+        } = state.as_ref();
 
         let keybind_subscription =
             iced::event::listen_with(move |event, _, _window_id| Some(event))
@@ -701,7 +558,7 @@ impl App {
                         })
                         .collect::<Vec<_>>(),
                     config.general.reactive_panels,
-                    *show_webview,
+                    webview_state.show,
                 ))
                 .map(
                     |((binds, reactive_panels, show_webview), event)| match event {
@@ -816,8 +673,9 @@ impl App {
                         _ => vec![AppMsg::IcedEvent(event)],
                     },
                 );
-        let tab_subscriptions = AppSubscription::batch(tabs.iter().map(Tab::subscription));
-        let webview_subscription = webview.subscription().map(Into::into);
+        let tab_subscriptions =
+            AppSubscription::batch(tabs_state.tabs.iter().map(Tab::subscription));
+        let webview_subscription = webview_state.subscription();
 
         AppSubscription::batch([
             keybind_subscription.map(Into::into),
@@ -827,32 +685,25 @@ impl App {
     }
 
     fn load_config() -> AppTask {
-        AppTask::perform(async move { Config::new().await.map(Box::new) }, |res| {
-            AppMsg::from_result(res, Into::into, true)
+        AppTask::perform(async move { Config::new().await }, |res| {
+            AppMsg::from_result(res.map(Box::new), Into::into, true)
         })
     }
 }
 
 pub enum AppState {
     LoadingConfig,
-    Main {
-        config: Box<Config>,
+    Main(Box<MainState>),
+}
 
-        tabs: Vec<Tab>,
-        current_tab: usize,
+pub struct MainState {
+    pub config: Box<Config>,
 
-        rename_tab_mode: bool,
-        rename_tab_content: text_editor::Content,
+    pub directory_tree_state: DirectoryTreeState,
+    pub tabs_state: TabsState,
+    pub webview_state: WebViewState,
 
-        panel_expanded: HashMap<KeyBindPanelType, bool>,
-
-        show_directory_tree: bool,
-        directory_tree: Box<DirectoryTree>,
-
-        show_webview: bool,
-        webview: Box<WebView<WebViewEngine, AppMsg>>,
-        url_input: String,
-    },
+    pub panel_expanded: HashMap<KeyBindPanelType, bool>,
 }
 
 #[derive(Debug, Clone, From)]
@@ -872,7 +723,7 @@ pub enum AppMsg {
     DirectoryTree(DirectoryTreeEvent),
 
     #[from(skip)]
-    RenameTabEditorAction(text_editor::Action),
+    RenameTabInput(String),
     #[from(skip)]
     RenameCurrentTab(String),
     #[from(skip)]

@@ -1,0 +1,87 @@
+use iced::mouse;
+use iced_webview::{PageType, WebView};
+use uuid::Uuid;
+
+use crate::{
+    app::{AppMsg, AppSubscription, AppTask},
+    config::webview::WebViewConfig,
+};
+
+pub type WebViewEngine = iced_webview::Servo;
+pub type AppWebView = WebView<WebViewEngine, AppMsg>;
+
+pub struct WebViewState {
+    pub show: bool,
+    pub webview: AppWebView,
+    pub url_input: String,
+}
+
+impl WebViewState {
+    pub fn new(default_url: impl Into<String>) -> (Self, AppTask) {
+        let default_url = default_url.into();
+
+        let res = Self {
+            show: false,
+            webview: WebView::new()
+                .on_action(AppMsg::WebView)
+                .on_create_view(AppMsg::WebViewCreatedView)
+                .on_url_change(AppMsg::UpdateUrlInput),
+
+            url_input: default_url.clone(),
+        };
+        let task = AppTask::done(AppMsg::WebView(iced_webview::Action::CreateView(
+            PageType::Url(default_url),
+        )));
+
+        (res, task)
+    }
+
+    pub fn toggle(&mut self, focused_pane: Option<Uuid>) -> Option<AppTask> {
+        self.show = !self.show;
+
+        if !self.show
+            && let Some(pane_id) = focused_pane
+        {
+            return Some(AppTask::done(AppMsg::FocusPane(pane_id)));
+        }
+
+        None
+    }
+
+    pub fn created_view(&mut self) -> AppTask {
+        self.url_input = self.webview.current_url().into();
+        AppTask::done(iced_webview::Action::ChangeView(0).into())
+    }
+
+    pub fn action(&mut self, mut action: iced_webview::Action, config: &WebViewConfig) -> AppTask {
+        if let iced_webview::Action::SendMouseEvent(mouse::Event::WheelScrolled { delta }, _) =
+            &mut action
+        {
+            match delta {
+                mouse::ScrollDelta::Lines { y, .. } => {
+                    *y *= config.scroll_acceleration;
+                }
+                mouse::ScrollDelta::Pixels { y, .. } => {
+                    *y *= config.scroll_acceleration;
+                }
+            }
+        }
+
+        self.webview.update(action)
+    }
+
+    pub fn update_url_input(&mut self, new_input: impl Into<String>) {
+        self.url_input = new_input.into();
+    }
+
+    pub fn refresh(&mut self) -> AppTask {
+        match self.show {
+            true => AppTask::done(iced_webview::Action::Refresh.into()),
+            false => AppTask::none(),
+        }
+    }
+
+    pub fn subscription(&self) -> AppSubscription {
+        self.webview.subscription().map(Into::into)
+    }
+}
