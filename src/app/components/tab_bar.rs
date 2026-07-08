@@ -101,6 +101,7 @@ impl<'a> TabBar<'a> {
             .spacing(10),
         )
         .horizontal()
+        .spacing(2)
         .into()
     }
 
