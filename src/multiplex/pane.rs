@@ -19,7 +19,10 @@ use uuid::Uuid;
 static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 use crate::{
-    app::{AppElement, AppMsg, AppSubscription, AppTask},
+    app::{
+        AppElement, AppMsg, AppSubscription, AppTask,
+        mode::{TTermMode, terminal::TerminalMode},
+    },
     config::{
         keybinds::{Key, KeyBind, KeyBindsConfig, Modifier, TTermPaneAction},
         presets::ProgramConfig,
@@ -135,9 +138,10 @@ impl PaneState {
                         id: self.id,
                         msg: e.into(),
                     })
+                    .map(<TerminalMode as TTermMode>::Message::from)
                     .map(AppMsg::from),
             )
-            .on_enter(AppMsg::FocusPane(self.id)),
+            .on_enter(<TerminalMode as TTermMode>::Message::FocusPane(self.id).into()),
         )
         .padding(4)
         .style(move |theme| {
@@ -177,10 +181,10 @@ impl PaneState {
                 match action {
                     iced_term::actions::Action::Shutdown => {
                         return Some(AppTask::done(
-                            IdPaneMessage {
+                            <TerminalMode as TTermMode>::Message::from(IdPaneMessage {
                                 id: self.id,
                                 msg: PaneMessage::Close,
-                            }
+                            })
                             .into(),
                         ));
                     }
@@ -213,7 +217,10 @@ impl PaneState {
                         }
 
                         if pwd_switched && is_focused {
-                            return Some(AppTask::done(AppMsg::UpdateFocusedDirectoryTree));
+                            return Some(AppTask::done(
+                                <TerminalMode as TTermMode>::Message::UpdateFocusedDirectoryTree
+                                    .into(),
+                            ));
                         }
                     }
                     _ => {}
@@ -232,6 +239,7 @@ impl PaneState {
             .subscription()
             .with(id)
             .map(|(id, e)| IdPaneMessage { id, msg: e.into() })
+            .map(<TerminalMode as TTermMode>::Message::from)
             .map(AppMsg::from)
     }
 

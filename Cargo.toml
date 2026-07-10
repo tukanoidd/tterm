@@ -105,7 +105,12 @@ itertools.workspace = true
 chumsky.workspace = true
 
 bon.workspace = true
-derive_more = { workspace = true, features = ["debug", "display", "from"] }
+derive_more = { workspace = true, features = [
+  "debug",
+  "display",
+  "from",
+  "as_ref",
+] }
 ordered-float = { workspace = true, features = ["serde"] }
 smart-default.workspace = true
 strum = { workspace = true, features = ["derive"] }

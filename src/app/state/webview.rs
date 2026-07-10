@@ -3,7 +3,10 @@ use iced_webview::{PageType, WebView};
 use uuid::Uuid;
 
 use crate::{
-    app::{AppMsg, AppSubscription, AppTask},
+    app::{
+        AppMsg, AppSubscription, AppTask,
+        mode::{TTermMode, terminal::TerminalMode},
+    },
     config::webview::WebViewConfig,
 };
 
@@ -42,7 +45,9 @@ impl WebViewState {
         if !self.show
             && let Some(pane_id) = focused_pane
         {
-            return Some(AppTask::done(AppMsg::FocusPane(pane_id)));
+            return Some(AppTask::done(
+                <TerminalMode as TTermMode>::Message::FocusPane(pane_id).into(),
+            ));
         }
 
         None

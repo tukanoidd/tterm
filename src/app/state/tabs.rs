@@ -3,7 +3,10 @@ use iced_aw::Spinner;
 use uuid::Uuid;
 
 use crate::{
-    app::{AppElement, AppMsg, AppTask},
+    app::{
+        AppElement, AppTask,
+        mode::{TTermMode, terminal::TerminalMode},
+    },
     config::keybinds::TTermTabAction,
     multiplex::{
         pane::{IdPaneMessage, PaneState},
@@ -96,8 +99,9 @@ impl TabsState {
             return AppTask::none();
         };
 
-        tab.focus_pane(pane_id)
-            .chain(AppTask::done(AppMsg::UpdateFocusedDirectoryTree))
+        tab.focus_pane(pane_id).chain(AppTask::done(
+            <TerminalMode as TTermMode>::Message::UpdateFocusedDirectoryTree.into(),
+        ))
     }
 
     pub fn update_pane(&mut self, pane_msg: IdPaneMessage) -> AppTask {
