@@ -1,43 +1,23 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{
-    Field, FieldsNamed, Ident, Token, Variant, braced, bracketed, parse::Parse, parse_macro_input,
-};
+use syn::{Field, FieldsNamed, Ident, Token, Variant, braced, parse::Parse};
 
 use crate::modes::actions::Actions;
 
 mod actions;
 
-pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let modes: Modes = parse_macro_input!(input);
-    modes.generate().into()
-}
-
 pub struct Modes {
-    types: Vec<Mode>,
+    types: Vec<Ident>,
 }
 
 impl Modes {
     pub fn generate(self) -> TokenStream {
         let Self { types } = self;
-        let variant_enum = Self::mode_variant_enum(&types);
-
-        let impls = types.into_iter().map(Mode::generate_struct_impls);
-
-        quote! {
-            #variant_enum
-
-            #(#impls)*
-        }
-    }
-
-    fn mode_variant_enum(types: &[Mode]) -> TokenStream {
-        let vars = types.iter().map(|mode| &mode.name);
 
         quote! {
             #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq)]
             pub enum TTermModeVariant {
-                #(#vars),*
+                #(#types),*
             }
         }
     }
@@ -46,7 +26,7 @@ impl Modes {
 impl Parse for Modes {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let types = input
-            .parse_terminated(Mode::parse, Token![,])?
+            .parse_terminated(Ident::parse, Token![,])?
             .into_iter()
             .collect();
 
@@ -54,64 +34,64 @@ impl Parse for Modes {
     }
 }
 
-struct Mode {
+pub struct Mode {
     name: Ident,
 
     message: ModeMessage,
     actions: Actions,
 
     config: ModeConfig,
-    states: [ModeState; 3],
+    state: ModeState,
 
     impl_fns: Vec<syn::ItemFn>,
 }
 
 impl Mode {
-    fn generate_struct_impls(self) -> TokenStream {
+    pub fn generate(self) -> TokenStream {
         let Self {
             name,
             message,
             actions,
             config,
-            states,
+            state,
             impl_fns,
         } = self;
 
         let struct_name = format_ident!("{name}Mode");
         let message_name = ModeMessage::enum_name(&name);
         let config_name = ModeConfig::struct_name(&name);
-        let view_state_name = format_ident!("{name}ModeViewState");
-        let update_state_name = format_ident!("{name}ModeUpdateState");
-        let subscription_state_name = format_ident!("{name}ModeSubscriptionState");
+        let keybind_panel_type_enum_name = format_ident!("{name}ModeKeyBindPanelType");
+        let action_name = Actions::enum_name(&name);
+        let state_name = ModeState::struct_name(&name);
 
         let impl_fns = impl_fns.into_iter().map(|f| f.to_token_stream());
-
-        let state_structs = states.into_iter().map(|s| s.generate_struct(&name));
 
         let message_enum = message.generate_enum(&name);
         let action_tokens = actions.generate_enum(&name);
 
+        let state_struct = state.generate_struct(&name);
+
         let config_struct = config.generate_struct(&name);
 
         quote! {
+            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
             pub struct #struct_name;
 
-            impl<'a> TTermMode<'a> for #struct_name {
+            impl crate::app::mode::TTermMode for #struct_name {
                 type Message = #message_name;
-
+                type KeyBindPanelType = #keybind_panel_type_enum_name;
+                type Action = #action_name;
                 type Config = #config_name;
 
-                type ViewState = #view_state_name<'a>;
-                type UpdateState = #update_state_name<'a>;
-                type SubscriptionState = #subscription_state_name<'a>;
+                type State = #state_name;
 
                 #(#impl_fns)*
             }
 
-            #(#state_structs)*
-
             #action_tokens
             #message_enum
+
+            #state_struct
 
             #config_struct
         }
@@ -160,55 +140,15 @@ impl Parse for Mode {
         let _semi: Token![;] = data_input.parse()?;
 
         // states
-        let states_ident: Ident = data_input.parse()?;
+        let state_ident: Ident = data_input.parse()?;
 
-        if states_ident != "states" {
-            return Err(syn::Error::new(config_ident.span(), "Not 'states'"));
+        if state_ident != "state" {
+            return Err(syn::Error::new(config_ident.span(), "Not 'state'"));
         }
 
         let _col: Token![:] = data_input.parse()?;
 
-        let states_input;
-        let _br = bracketed!(states_input in data_input);
-        let mut states_list = states_input
-            .parse_terminated(ModeState::parse, Token![,])?
-            .into_iter()
-            .collect::<Vec<_>>();
-
-        let states = match states_list.len() {
-            3 => [
-                states_list.remove(0),
-                states_list.remove(0),
-                states_list.remove(0),
-            ],
-            l if l < 3 => {
-                let last = states_list.last();
-
-                return Err(syn::Error::new(
-                    last.as_ref()
-                        .map(|m| m.span.clone())
-                        .unwrap_or_else(|| data_input.span()),
-                    match last.as_ref() {
-                        Some(_) => format!(
-                            "Only {l} states out of [view, update, subscription] were provided"
-                        ),
-                        None => {
-                            "None of the states out of [view, update, subscription] were provided"
-                                .into()
-                        }
-                    },
-                ));
-            }
-            l => {
-                let last = states_list.last().unwrap();
-                return Err(syn::Error::new(
-                    last.span,
-                    format!(
-                        "Too many ({l}) states were provided out of [view, update, subscription]"
-                    ),
-                ));
-            }
-        };
+        let state: ModeState = data_input.parse()?;
         let _semi: Token![;] = data_input.parse()?;
 
         let impl_fns = vec![
@@ -224,7 +164,7 @@ impl Parse for Mode {
             actions,
 
             config,
-            states,
+            state,
 
             impl_fns,
         })
@@ -245,14 +185,30 @@ impl ModeMessage {
 
         let enum_name = Self::enum_name(mode);
         let action_enum_name = Actions::enum_name(mode);
+
+        let mode_struct_name = format_ident!("{mode}Mode");
+        let keybind_panel_type_enum_name = format_ident!("{mode}ModeKeyBindPanelType");
+        let panel_toggle_var = quote!(PanelToggle {
+            ty: #keybind_panel_type_enum_name,
+            force: Option<bool>
+        });
         let action_var = quote!(Action(#action_enum_name));
 
         quote! {
             #[derive(Debug, Clone, derive_more::From)]
             pub enum #enum_name {
-                #[from(skip)]
                 #action_var,
+                #panel_toggle_var,
                 #(#variants),*
+            }
+
+            impl crate::app::mode::TTermModeMessage<#mode_struct_name> for #enum_name {
+                fn panel_toggle(
+                    ty: <#mode_struct_name as crate::app::mode::TTermMode>::KeyBindPanelType,
+                    force: Option<bool>
+                ) -> Self {
+                    Self::PanelToggle { ty, force }
+                }
             }
         }
     }
@@ -285,32 +241,15 @@ impl ModeConfig {
         let Self { fields } = self;
         let struct_name = Self::struct_name(mode);
 
-        let keybinds_config_struct_name = format_ident!("{mode}ModeKeyBindsConfig");
-        let action_enum_name = Actions::enum_name(mode);
-        let keybinds_config_struct = {
-            quote! {
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-                pub struct #keybinds_config_struct_name {
-                    pub actions: Vec<(crate::config::keybinds::KeyBind, #action_enum_name)>
-                }
+        let mode_struct_name = format_ident!("{mode}Mode");
 
-                impl Default for #keybinds_config_struct_name {
-                    fn default() -> Self {
-                        Self {
-                            actions: #action_enum_name::default_keybinds()
-                                .into_iter()
-                                .flat_map(|(_, map)| map.into_iter())
-                                .collect(),
-                        }
-                    }
-                }
-            }
-        };
         let fields = fields
             .named
             .into_iter()
-            .map(|Field { ident, ty, .. }| quote!(#ident: #ty))
-            .chain([quote!(keybinds: #keybinds_config_struct_name)]);
+            .map(|Field { ident, ty, .. }| quote!(pub #ident: #ty))
+            .chain([
+                quote!(pub keybinds: crate::config::keybinds::KeyBindsConfig<#mode_struct_name>),
+            ]);
 
         quote! {
             #[derive(
@@ -319,11 +258,16 @@ impl ModeConfig {
                 Clone,
                 serde::Serialize, serde::Deserialize
             )]
+            #[serde(default)]
             pub struct #struct_name {
                 #(#fields),*
             }
 
-            #keybinds_config_struct
+            impl crate::app::mode::TTermModeConfig<#mode_struct_name> for #struct_name {
+                fn keybinds(&self) -> &crate::config::keybinds::KeyBindsConfig<#mode_struct_name> {
+                    &self.keybinds
+                }
+            }
         }
     }
 }
@@ -337,44 +281,42 @@ impl Parse for ModeConfig {
 }
 
 struct ModeState {
-    span: Span,
-    ty: ModeStateType,
     fields: FieldsNamed,
 }
 
 impl ModeState {
-    fn generate_struct(self, mode: &Ident) -> TokenStream {
-        let Self { ty, fields, .. } = self;
+    fn struct_name(mode: &Ident) -> Ident {
+        format_ident!("{mode}ModeState")
+    }
 
-        let ref_ = match &ty {
-            ModeStateType::View | ModeStateType::Subscription => quote!(&'a),
-            ModeStateType::Update => quote!(&'a mut),
-        };
-        let struct_name = ty.struct_name(mode);
-        let field_names = fields
-            .named
-            .iter()
-            .map(|f| f.ident.clone())
-            .collect::<Vec<_>>();
+    fn generate_struct(self, mode: &Ident) -> TokenStream {
+        let Self { fields, .. } = self;
+
+        let mode_struct_name = format_ident!("{mode}Mode");
+        let struct_name = Self::struct_name(mode);
         let fields = fields.named.into_iter().map(|Field { ident, ty, .. }| {
             quote! {
-                #ident: #ref_ #ty
+                pub #ident: #ty
             }
         });
 
         quote! {
-            pub struct #struct_name<'a> {
+            pub struct #struct_name {
+                pub keybind_panel_expanded: std::collections::HashMap<
+                    <#mode_struct_name as crate::app::TTermMode>::KeyBindPanelType,
+                    bool
+                >,
                 #(#fields),*
             }
 
-            impl<'a> From<#ref_ MainState> for #struct_name<'a> {
-                fn from(MainState {
-                    #(#field_names,)*
-                    ..
-                }: #ref_ MainState) -> Self {
-                    Self {
-                        #(#field_names),*
-                    }
+            impl #struct_name {
+                pub fn panel_toggle(
+                    &mut self,
+                    ty: <#mode_struct_name as crate::app::TTermMode>::KeyBindPanelType,
+                    force: Option<bool>
+                ) {
+                    let entry = self.keybind_panel_expanded.entry(ty).or_default();
+                    *entry = force.unwrap_or(!*entry);
                 }
             }
         }
@@ -383,47 +325,8 @@ impl ModeState {
 
 impl Parse for ModeState {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let span = input.span();
-        let ty: ModeStateType = input.parse()?;
         let fields: FieldsNamed = input.parse()?;
 
-        Ok(Self { span, ty, fields })
-    }
-}
-
-enum ModeStateType {
-    View,
-    Update,
-    Subscription,
-}
-
-impl ModeStateType {
-    fn struct_name(self, mode: &Ident) -> Ident {
-        format_ident!(
-            "{mode}Mode{}State",
-            match self {
-                Self::View => "View",
-                Self::Update => "Update",
-                Self::Subscription => "Subscription",
-            },
-        )
-    }
-}
-
-impl Parse for ModeStateType {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let _at: Token![@] = input.parse()?;
-        let name: Ident = input.parse()?;
-
-        let var = [
-            ("view", ModeStateType::View),
-            ("update", ModeStateType::Update),
-            ("subscription", ModeStateType::Subscription),
-        ]
-        .into_iter()
-        .find_map(|(n, v)| (name == n).then_some(v))
-        .ok_or_else(|| syn::Error::new(name.span(), "Neither view, update or subscription"))?;
-
-        Ok(var)
+        Ok(Self { fields })
     }
 }

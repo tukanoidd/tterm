@@ -13,7 +13,10 @@ use iced_fonts::lucide;
 use crate::{
     app::{
         AppElement, AppMsg, AppRenderer, AppTheme,
-        mode::{TTermMode, TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction},
+        mode::{
+            TTermMode,
+            terminal::{TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction},
+        },
         state::{directory_tree::DirectoryTreeState, tabs::TabsState},
     },
     fonts,
@@ -23,20 +26,14 @@ use crate::{
 pub struct TabBar<'a> {
     tabs: &'a TabsState,
     directory_tree: &'a DirectoryTreeState,
-    // webview: &'a WebViewState,
 }
 
 #[bon]
 impl<'a> TabBar<'a> {
-    pub fn new(
-        tabs: &'a TabsState,
-        directory_tree: &'a DirectoryTreeState,
-        // webview: &'a WebViewState,
-    ) -> Self {
+    pub fn new(tabs: &'a TabsState, directory_tree: &'a DirectoryTreeState) -> Self {
         Self {
             tabs,
             directory_tree,
-            // webview,
         }
     }
 
@@ -44,7 +41,6 @@ impl<'a> TabBar<'a> {
         let Self {
             tabs,
             directory_tree,
-            // webview,
         } = self;
 
         let toggle_show_directory_tree_button = button(match directory_tree.show {
@@ -63,28 +59,23 @@ impl<'a> TabBar<'a> {
                 })
         });
 
-        // let toggle_webview_button = button(match webview.show {
-        //     true => lucide::search_x(),
-        //     false => lucide::search_slash(),
-        // })
-        // .style(button::subtle)
-        // .on_press(TTermGeneralAction::WebViewToggle.into());
+        let toggle_webview_button = button(lucide::search())
+            .style(button::subtle)
+            .on_press(TerminalModeGeneralAction::ToWebView.into());
 
         container(
-            row(
-                [
-                    toggle_show_directory_tree_button.into(),
-                    space().width(Length::Fixed(15.0)).into(),
-                    scrollable_tab_list,
-                    space().width(Length::Fill).into(),
-                ]
-                .into_iter()
-                .chain(current_tab_name_editor.map(|ed| ed.width(300).into())),
-                // .chain([
-                //     space().width(Length::Fixed(15.0)).into(),
-                //     toggle_webview_button.into(),
-                // ])
-            )
+            row([
+                toggle_show_directory_tree_button.into(),
+                space().width(Length::Fixed(15.0)).into(),
+                scrollable_tab_list,
+                space().width(Length::Fill).into(),
+            ]
+            .into_iter()
+            .chain(current_tab_name_editor.map(|ed| ed.width(300).into()))
+            .chain([
+                space().width(Length::Fixed(15.0)).into(),
+                toggle_webview_button.into(),
+            ]))
             .align_y(Vertical::Center),
         )
         .padding(Padding::default().top(5).horizontal(5))
@@ -95,7 +86,7 @@ impl<'a> TabBar<'a> {
     fn tab_list(tabs: &'a TabsState) -> AppElement<'a> {
         scrollable(
             row(tabs
-                .tabs
+                .list
                 .iter()
                 .enumerate()
                 .map(Self::tab_badge(tabs.current, tabs.rename_mode))

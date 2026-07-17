@@ -6,7 +6,7 @@ use iced_swdir_tree::{DirectoryTree, DirectoryTreeEvent};
 use crate::{
     app::{
         AppElement, AppTask,
-        mode::{TTermMode, TerminalMode},
+        mode::{TTermMode, terminal::TerminalMode},
     },
     multiplex::pane::PaneState,
 };
@@ -48,9 +48,9 @@ impl DirectoryTreeState {
     pub fn update_path<'a>(&'a mut self, focused_pane: &'a PaneState) -> AppTask {
         self.directory_tree = DirectoryTree::new(focused_pane.pwd.clone()).with_prefetch_limit(1);
         AppTask::done(
-            <TerminalMode as TTermMode>::Message::DirectoryTree(
-                DirectoryTreeEvent::Toggled(focused_pane.pwd.clone()).into(),
-            )
+            <TerminalMode as TTermMode>::Message::DirectoryTree(DirectoryTreeEvent::Toggled(
+                focused_pane.pwd.clone(),
+            ))
             .into(),
         )
     }

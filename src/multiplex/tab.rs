@@ -43,7 +43,7 @@ impl Tab {
     #[builder]
     pub fn new(
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         tab_config: Option<TabConfig>,
     ) -> Result<(Self, AppTask)> {
         let (name, (tab_pane_state, task), floating) = match tab_config {
@@ -133,7 +133,7 @@ impl Tab {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> Result<AppTask> {
         let Some(panes) = self.panes.get_mut(&self.current_panes_type) else {
             return Ok(AppTask::none());
@@ -189,7 +189,7 @@ impl Tab {
     pub fn toggle_floating(
         &mut self,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> AppTask {
         let focused_pane_pwd = self
             .panes
@@ -271,7 +271,7 @@ pub struct TabPanesState {
 impl TabPanesState {
     pub fn new(
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         root_node_config: Option<PaneConfig>,
     ) -> Result<(Self, AppTask)> {
         let root_pane_id = Uuid::now_v7();
@@ -289,7 +289,7 @@ impl TabPanesState {
             }: &PaneConfig,
 
             terminal_config: &TerminalConfig,
-            keybinds_config: &KeyBindsConfig,
+            keybinds_config: &KeyBindsConfig<TerminalMode>,
         ) -> Result<()> {
             let id = Uuid::now_v7();
 
@@ -454,7 +454,7 @@ impl TabPanesState {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> Result<AppTask> {
         let Some((focused_pane, focused_pane_state)) = self.focused_pane() else {
             return Ok(AppTask::none());

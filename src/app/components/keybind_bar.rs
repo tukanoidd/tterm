@@ -7,147 +7,156 @@ use iced::{
 };
 use iced_aw::DropDown;
 use iced_fonts::lucide;
-use itertools::Itertools;
 use strum::VariantArray;
 
 use crate::{
-    app::{AppElement, AppMsg},
-    config::keybinds::KeyBind,
+    app::{
+        AppElement,
+        mode::{TTermMode, TTermModeKeyBindPanelType, TTermModeMessage},
+    },
+    config::keybinds::{KeyBind, KeyBindsConfig},
     fonts,
 };
 
-// pub struct KeyBindBar<'a> {
-//     keybinds_config: &'a KeyBindsConfig,
-//     keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
-// }
+pub struct KeyBindBar<'a, M>
+where
+    M: TTermMode,
+{
+    keybinds_config: &'a KeyBindsConfig<M>,
+    keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
+}
 
-// impl<'a> KeyBindBar<'a> {
-//     pub fn new(
-//         keybinds_config: &'a KeyBindsConfig,
-//         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
-//     ) -> Self {
-//         Self {
-//             keybinds_config,
-//             keybind_panel_expanded,
-//         }
-//     }
+type ModeBinds<'a, M> = &'a [(
+    <M as TTermMode>::KeyBindPanelType,
+    Vec<(KeyBind, <M as TTermMode>::Action)>,
+)];
 
-//     pub fn view(self) -> AppElement<'a> {
-//         let Self {
-//             keybinds_config,
-//             keybind_panel_expanded,
-//         } = self;
+impl<'a, M> KeyBindBar<'a, M>
+where
+    M: TTermMode,
+{
+    pub fn new(
+        keybinds_config: &'a KeyBindsConfig<M>,
+        keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
+    ) -> Self {
+        Self {
+            keybinds_config,
+            keybind_panel_expanded,
+        }
+    }
 
-//         const PADDING: u32 = 5;
-//         const SPACING: u32 = 5;
+    pub fn view(self) -> AppElement<'a> {
+        let Self {
+            keybinds_config,
+            keybind_panel_expanded,
+        } = self;
 
-//         let panels = <KeyBindPanelType as VariantArray>::VARIANTS
-//             .iter()
-//             .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded))
-//             .collect::<Vec<_>>();
+        const PADDING: u32 = 5;
+        const SPACING: u32 = 5;
 
-//         center(
-//             row(panels)
-//                 .padding(
-//                     Padding::default()
-//                         .bottom(PADDING)
-//                         .left(PADDING)
-//                         .right(PADDING),
-//                 )
-//                 .spacing(SPACING)
-//                 .wrap(),
-//         )
-//         .height(Length::Shrink)
-//         .into()
-//     }
+        let panels = <M::KeyBindPanelType as VariantArray>::VARIANTS
+            .iter()
+            .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded))
+            .collect::<Vec<_>>();
 
-//     fn panel(
-//         ty: KeyBindPanelType,
-//         binds: &'a [(KeyBind, TTermAction)],
-//         keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
-//     ) -> AppElement<'a> {
-//         let binds = binds
-//             .iter()
-//             .filter(|(_, action)| {
-//                 matches!(
-//                     (action, ty),
-//                     (TTermAction::Tab(_), KeyBindPanelType::Tab)
-//                         | (TTermAction::Pane(_), KeyBindPanelType::Pane)
-//                         | (TTermAction::General(_), KeyBindPanelType::General),
-//                 )
-//             })
-//             .sorted_by_key(|(_, action)| action.to_string());
-//         let table = table(
-//             [
-//                 table::column(
-//                     text("Binding").center(),
-//                     |(bind, _): &(KeyBind, TTermAction)| text(bind.to_string()).center(),
-//                 ),
-//                 table::column(text("Action"), |(_, action): &(KeyBind, TTermAction)| {
-//                     text(action.to_string()).center()
-//                 }),
-//             ],
-//             binds,
-//         )
-//         .width(Length::Fill);
+        center(
+            row(panels)
+                .padding(
+                    Padding::default()
+                        .bottom(PADDING)
+                        .left(PADDING)
+                        .right(PADDING),
+                )
+                .spacing(SPACING)
+                .wrap(),
+        )
+        .height(Length::Shrink)
+        .into()
+    }
 
-//         let expanded = keybind_panel_expanded.get(&ty).copied().unwrap_or_default();
+    fn panel(
+        ty: M::KeyBindPanelType,
+        binds: ModeBinds<'a, M>,
+        keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
+    ) -> AppElement<'a> {
+        let binds = binds
+            .iter()
+            .find_map(|(bt, binds)| (bt == &ty).then(|| binds.iter()))
+            .into_iter()
+            .flatten();
+        let table = table(
+            [
+                table::column(
+                    text("Binding").center(),
+                    |(bind, _): &(KeyBind, M::Action)| text(bind.to_string()).center(),
+                ),
+                table::column(text("Action"), |(_, action): &(KeyBind, M::Action)| {
+                    text(action.to_string()).center()
+                }),
+            ],
+            binds,
+        )
+        .width(Length::Fill);
 
-//         let panel_button_icon = match expanded {
-//             true => lucide::arrow_up_from_line(),
-//             false => lucide::arrow_down_from_line(),
-//         };
-//         let panel_button = button(
-//             center(
-//                 row![
-//                     panel_button_icon,
-//                     text(ty.title())
-//                         .align_x(Alignment::Center)
-//                         .font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_BOLD_FONT)
-//                 ]
-//                 .align_y(Vertical::Center)
-//                 .spacing(6)
-//                 .padding(Padding::default().horizontal(150)),
-//             )
-//             .width(Length::Shrink)
-//             .height(Length::Shrink),
-//         )
-//         .style(style::panel_button(expanded))
-//         .on_press(AppMsg::PanelToggle { ty, force: None });
+        let expanded = keybind_panel_expanded.get(&ty).copied().unwrap_or_default();
 
-//         let panel = center(table).padding(5).style(style::panel);
+        let panel_button_icon = match expanded {
+            true => lucide::arrow_up_from_line(),
+            false => lucide::arrow_down_from_line(),
+        };
+        let panel_button = button(
+            center(
+                row![
+                    panel_button_icon,
+                    text(ty.title())
+                        .align_x(Alignment::Center)
+                        .font(fonts::MONOSPACE_ROBOTO_MONO_NERD_FONT_MONO_BOLD_FONT)
+                ]
+                .align_y(Vertical::Center)
+                .spacing(6)
+                .padding(Padding::default().horizontal(150)),
+            )
+            .width(Length::Shrink)
+            .height(Length::Shrink),
+        )
+        .style(style::panel_button(expanded))
+        .on_press(
+            <<M as TTermMode>::Message as TTermModeMessage<M>>::panel_toggle(ty, None).into(),
+        );
 
-//         DropDown::new(panel_button, panel, expanded)
-//             .on_dismiss(AppMsg::PanelToggle {
-//                 ty,
-//                 force: Some(false),
-//             })
-//             .alignment(iced_aw::core::alignment::Alignment::Top)
-//             .into()
-//     }
-// }
+        let panel = center(table).padding(5).style(style::panel);
 
-// pub mod style {
-//     use iced::widget::{button, container};
+        DropDown::new(panel_button, panel, expanded)
+            .on_dismiss(
+                <<M as TTermMode>::Message as TTermModeMessage<M>>::panel_toggle(ty, Some(false))
+                    .into(),
+            )
+            .alignment(iced_aw::core::alignment::Alignment::Top)
+            .into()
+    }
+}
 
-//     use crate::app::AppTheme;
+pub mod style {
+    use iced::widget::{button, container};
 
-//     pub fn panel_button(expanded: bool) -> impl Fn(&AppTheme, button::Status) -> button::Style {
-//         move |theme, status| {
-//             let status = match expanded {
-//                 true => button::Status::Hovered,
-//                 false => status,
-//             };
+    use crate::app::AppTheme;
 
-//             let mut style = button::subtle(theme, status);
-//             style.border = style.border.rounded(20);
+    pub fn panel_button(expanded: bool) -> impl Fn(&AppTheme, button::Status) -> button::Style {
+        move |theme, status| {
+            let status = match expanded {
+                true => button::Status::Hovered,
+                false => status,
+            };
 
-//             style
-//         }
-//     }
+            let mut style = button::subtle(theme, status);
+            style.border = style.border.rounded(20);
 
-//     pub fn panel(theme: &AppTheme) -> container::Style {
-//         let style = container::bordered_box(theme);
-//         style.border(style.border.rounded(20))
-//     }
-// }
+            style
+        }
+    }
+
+    pub fn panel(theme: &AppTheme) -> container::Style {
+        let style = container::bordered_box(theme);
+        style.border(style.border.rounded(20))
+    }
+}

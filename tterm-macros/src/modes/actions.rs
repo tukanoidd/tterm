@@ -16,6 +16,8 @@ impl Actions {
     pub fn generate_enum(self, mode: &Ident) -> TokenStream {
         let Self { types } = self;
 
+        let mode_struct_name = format_ident!("{mode}Mode");
+
         let tterm_action_enum = {
             let variants = types
                 .iter()
@@ -48,8 +50,8 @@ impl Actions {
                         #(#variants),*
                     }
 
-                    impl #keybind_panel_type_enum_name {
-                        pub fn title(&self) -> String {
+                    impl crate::app::mode::TTermModeKeyBindPanelType for #keybind_panel_type_enum_name {
+                        fn title(&self) -> String {
                             match self {
                                 #(#title_match_arms),*
                             }
@@ -85,19 +87,31 @@ impl Actions {
                     });
 
                     quote! {
-                        fn default_keybinds() -> Vec<(
-                            #keybind_panel_type_enum_name,
-                            Vec<(crate::config::keybinds::KeyBind, #enum_name)>
-                        )> {
-                            Vec::from_iter([#(#binds),*])
+                        impl crate::app::mode::TTermModeAction<#mode_struct_name> for #enum_name {
+                            fn default_keybinds() -> Vec<(
+                                #keybind_panel_type_enum_name,
+                                Vec<(crate::config::keybinds::KeyBind, #enum_name)>
+                            )> {
+                                Vec::from_iter([#(#binds),*])
+                            }
+                        }
+                    }
+                };
+
+                let from_impls = {
+                    quote! {
+                        impl From<#enum_name> for crate::app::AppMsg {
+                            fn from(value: #enum_name) -> Self {
+                                Self::#mode_struct_name(value.into())
+                            }
                         }
                     }
                 };
 
                 quote! {
-                    impl #enum_name {
-                        #default_keybinds
-                    }
+                    #default_keybinds
+
+                    #from_impls
                 }
             };
 
@@ -168,22 +182,30 @@ impl Actions {
                     }
                 };
 
+                let from_impls = {
+                    let message_name = ModeMessage::enum_name(mode);
+                    
+                    quote! {
+                        impl From<#type_name> for #message_name {
+                            fn from(value: #type_name) -> Self {
+                                Self::Action(value.into())
+                            }
+                        }
+                        
+                        impl From<#type_name> for crate::app::AppMsg {
+                            fn from(value: #type_name) -> Self {
+                                Self::#mode_struct_name(value.into())
+                            }
+                        }
+                    }
+                };
+
                 quote! {
                     impl #type_name {
                         #default_keybinds
                     }
-                }
-            };
 
-            let from_trait = {
-                let message = ModeMessage::enum_name(mode);
-                
-                quote! {
-                    impl<IA> From<IA> for AppMsg where IA: Into<#type_name> {
-                        fn from(value: IA) -> AppMsg {
-                            #message::Action(value.into()).into()
-                        }
-                    }
+                    #from_impls
                 }
             };
 
@@ -191,6 +213,7 @@ impl Actions {
                 #[derive(
                     Debug, derive_more::Display,
                     Clone, Hash,
+                    derive_more::From,
                     serde::Serialize, serde::Deserialize
                 )]
                 pub enum #type_name {
@@ -198,8 +221,6 @@ impl Actions {
                 }
 
                 #impl_methods
-
-                #from_trait
             }
         });
 

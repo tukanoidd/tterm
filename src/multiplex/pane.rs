@@ -21,10 +21,13 @@ static TERM_ID: AtomicU64 = AtomicU64::new(0);
 use crate::{
     app::{
         AppElement, AppMsg, AppSubscription, AppTask,
-        mode::{TTermMode, terminal::TerminalMode},
+        mode::{
+            TTermMode,
+            terminal::{TerminalMode, TerminalModePaneAction},
+        },
     },
     config::{
-        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier, TTermPaneAction},
+        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier},
         presets::ProgramConfig,
         terminal::TerminalConfig,
     },
@@ -46,7 +49,7 @@ impl PaneState {
     pub fn new(
         id: Uuid,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         working_directory: Option<PathBuf>,
         program_config: Option<ProgramConfig>,
     ) -> Result<Self> {
@@ -95,6 +98,7 @@ impl PaneState {
             keybinds_config
                 .actions
                 .iter()
+                .flat_map(|(_, l)| l)
                 .map(|(KeyBind { key, modifiers }, _)| {
                     (
                         iced_term::bindings::Binding {
@@ -155,7 +159,7 @@ impl PaneState {
         });
         let selection_items = || {
             column(
-                TTermPaneAction::default_keybinds()
+                TerminalModePaneAction::default_keybinds()
                     .into_iter()
                     .map(|(_, action)| {
                         button(text(action.to_string()))

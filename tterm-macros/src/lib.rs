@@ -1,26 +1,19 @@
 mod fonts;
 mod modes;
 
-use std::io::prelude::Write;
-
 use proc_macro::TokenStream;
+use syn::parse_macro_input;
 
 #[proc_macro]
 pub fn modes(input: TokenStream) -> TokenStream {
-    let output = modes::generate(input);
+    let modes: modes::Modes = parse_macro_input!(input);
+    modes.generate().into()
+}
 
-    // let macro_test = std::path::Path::new("macro-test");
-
-    // if !macro_test.exists() {
-    //     std::fs::create_dir_all(macro_test).unwrap();
-    // }
-
-    // let mut dump_file = std::fs::File::create(macro_test.join("modes.rs")).unwrap();
-    // dump_file
-    //     .write_all(&output.to_string().into_bytes())
-    //     .unwrap();
-
-    output
+#[proc_macro]
+pub fn mode(input: TokenStream) -> TokenStream {
+    let mode: modes::Mode = parse_macro_input!(input);
+    mode.generate().into()
 }
 
 #[proc_macro]

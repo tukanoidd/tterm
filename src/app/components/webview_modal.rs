@@ -1,10 +1,16 @@
 use iced::{
-    Length, Padding,
-    widget::{center, column, container, text_input},
+    Length,
+    alignment::Vertical,
+    widget::{button, column, row, text_input},
 };
+use iced_fonts::lucide;
 use iced_webview::WebView;
 
-use crate::app::{AppElement, AppMsg, AppTheme, state::webview::WebViewState};
+use crate::app::{
+    AppElement, AppMsg,
+    mode::webview::{WebViewModeGeneralAction, WebViewModeMessage},
+    state::webview::WebViewState,
+};
 
 pub type WebViewEngine = iced_webview::Servo;
 pub type AppWebView = WebView<WebViewEngine, AppMsg>;
@@ -18,35 +24,35 @@ impl<'a> WebViewModal<'a> {
         Self { state }
     }
 
-    pub fn view(self) -> Option<AppElement<'a>> {
+    pub fn view(self) -> AppElement<'a> {
         let Self { state } = self;
 
-        state.show.then(|| {
-            center(
-                column![
-                    center(
-                        text_input("Enter url...", &state.url_input)
-                            .on_input(AppMsg::UpdateUrlInput)
-                            .on_submit(AppMsg::from_result(
-                                url::Url::parse(&state.url_input)
-                                    .map(iced_webview::Action::GoToUrl),
-                                Into::into,
-                                false
-                            ),)
-                    )
-                    .height(Length::Shrink)
-                    .padding(Padding::default().horizontal(5)),
-                    state.webview.view().map(AppMsg::WebView)
-                ]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .spacing(5),
-            )
-            .padding(15.0)
-            .style(|theme: &AppTheme| {
-                container::background(theme.palette().background.scale_alpha(0.5))
-            })
-            .into()
-        })
+        column![
+            row![
+                button(lucide::square_terminal())
+                    .on_press(WebViewModeGeneralAction::ToTerminal.into()),
+                text_input("Enter url...", &state.url_input)
+                    .on_input(|new_url| WebViewModeMessage::UpdateUrlInput(new_url).into())
+                    .on_submit(AppMsg::from_result(
+                        url::Url::parse(&state.url_input)
+                            .map(iced_webview::Action::GoToUrl)
+                            .map(WebViewModeMessage::WebView),
+                        Into::into,
+                        false
+                    ))
+            ]
+            .align_y(Vertical::Center)
+            .spacing(5)
+            .height(Length::Shrink),
+            state
+                .webview
+                .view()
+                .map(WebViewModeMessage::WebView)
+                .map(Into::into)
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .spacing(5)
+        .into()
     }
 }
