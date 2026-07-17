@@ -1,39 +1,32 @@
 pub mod components;
+pub mod mode;
 pub mod state;
 
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use derive_more::From;
 use iced::{
-    Length,
+    Event,
     alignment::Horizontal,
-    keyboard, mouse,
-    widget::{self, center, column, row, rule, stack, text},
+    widget::{center, column, rule, text},
 };
 use iced_aw::Spinner;
 use iced_swdir_tree::DirectoryTreeEvent;
-use itertools::Itertools;
-use strum::VariantArray;
-use uuid::Uuid;
 
 use crate::{
     CLI_PRESET,
     app::{
-        components::{keybind_bar::KeyBindBar, tab_bar::TabBar, webview_modal::WebViewModal},
+        components::keybind_bar::KeyBindBar,
+        mode::{
+            TTermMode, TTermModeVariant,
+            terminal::{
+                TerminalMode, TerminalModeMessage, TerminalModeState, TerminalModeTabAction,
+            },
+            webview::{WebViewMode, WebViewModeMessage, WebViewModeState},
+        },
         state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
     },
-    config::{
-        Config,
-        keybinds::{
-            KeyBind, KeyBindPanelType, Modifier, MoveFocusDirection, TTermAction,
-            TTermGeneralAction, TTermPaneAction, TTermTabAction,
-        },
-        presets::PresetConfig,
-    },
-    multiplex::{
-        pane::{IdPaneMessage, PaneMessage},
-        tab::Tab,
-    },
+    config::{Config, presets::PresetConfig},
 };
 
 pub type AppTheme = iced::Theme;
@@ -44,13 +37,19 @@ pub type AppTask = iced::Task<AppMsg>;
 pub type AppSubscription = iced::Subscription<AppMsg>;
 
 pub struct App {
+    config: Option<Box<Config>>,
     state: AppState,
+
+    current_mode: TTermModeVariant,
 }
 
 impl App {
     pub fn boot() -> (Self, AppTask) {
         let res = Self {
+            config: None,
             state: AppState::LoadingConfig,
+
+            current_mode: TTermModeVariant::Terminal,
         };
         let task = AppTask::done(AppMsg::LoadConfig);
 
@@ -62,9 +61,9 @@ impl App {
     }
 
     pub fn theme(&self) -> AppTheme {
-        match &self.state {
-            AppState::LoadingConfig => AppTheme::Dark,
-            AppState::Main(state) => state.config.general.theme.into(),
+        match &self.config {
+            Some(config) => config.general.theme.into(),
+            None => AppTheme::Dark,
         }
     }
 
@@ -80,63 +79,35 @@ impl App {
             .into(),
 
             AppState::Main(state) => {
-                let MainState {
-                    config,
-
-                    directory_tree_state,
-                    tabs_state,
-                    webview_state,
-
-                    panel_expanded,
-                } = state.as_ref();
-
-                let directory_tree_view = directory_tree_state.view();
-
-                let tab_widget = tabs_state.view();
-                let dir_tree_tab_widget = row(directory_tree_view.into_iter().chain([tab_widget]));
-                let dir_tree_tab_widget_opt_webview: AppElement<'_> =
-                    match WebViewModal::new(webview_state).view() {
-                        Some(webview_modal_element) => {
-                            stack![dir_tree_tab_widget, webview_modal_element,].into()
-                        }
-                        None => dir_tree_tab_widget.into(),
-                    };
+                let config = self.config.as_ref().unwrap();
 
                 column![
-                    TabBar::new(tabs_state, directory_tree_state, webview_state).view(),
+                    match self.current_mode {
+                        TTermModeVariant::Terminal => TerminalMode.view(config, state),
+                        TTermModeVariant::WebView => WebViewMode.view(config, state),
+                    },
                     rule::horizontal(2),
-                    dir_tree_tab_widget_opt_webview,
-                    rule::horizontal(2),
-                    KeyBindBar::new(&config.keybinds, panel_expanded).view()
+                    match self.current_mode {
+                        TTermModeVariant::Terminal => KeyBindBar::<TerminalMode>::new(
+                            &config.terminal_mode.keybinds,
+                            &state.terminal_mode.keybind_panel_expanded
+                        )
+                        .view(),
+                        TTermModeVariant::WebView => KeyBindBar::<WebViewMode>::new(
+                            &config.webview_mode.keybinds,
+                            &state.webview_mode.keybind_panel_expanded
+                        )
+                        .view(),
+                    },
                 ]
-                .width(Length::Fill)
-                .height(Length::Fill)
                 .spacing(10)
-                .padding(5)
+                .padding(10)
                 .into()
             }
         }
     }
 
     pub fn update(&mut self, msg: AppMsg) -> AppTask {
-        macro_rules! get_main_state {
-            ($($param:ident),+) => {{
-                match &mut self.state {
-                    AppState::Main(state) => {
-                        let MainState {
-                            $($param,)+ ..
-                        } = state.as_mut();
-
-                        ($($param),+)
-                    },
-                    _ => {
-                        tracing::warn!("Not in main state...");
-                        return AppTask::none();
-                    }
-                }
-            }};
-        }
-
         match msg {
             AppMsg::Error { message, critical } => {
                 tracing::error!("{message}");
@@ -179,7 +150,7 @@ impl App {
                     Some(PresetConfig { tabs, .. }) => tabs
                         .iter()
                         .map(|config| {
-                            AppTask::done(TTermTabAction::New(Some(config.clone())).into())
+                            AppTask::done(TerminalModeTabAction::New(Some(config.clone())).into())
                         })
                         .collect(),
                     None => vec![],
@@ -196,336 +167,70 @@ impl App {
                 };
 
                 let (webview_state, webview_init_task) =
-                    WebViewState::new(&config.webview.default_url);
+                    WebViewState::new(&config.webview_mode.base.default_url);
 
+                self.config = Some(config);
                 self.state = AppState::Main(Box::new(MainState {
-                    config,
+                    terminal_mode: TerminalModeState {
+                        keybind_panel_expanded: Default::default(),
 
-                    directory_tree_state: DirectoryTreeState::new(home_dir.clone()),
-                    tabs_state: TabsState::default(),
-                    webview_state,
+                        directory_tree: DirectoryTreeState::new(home_dir.clone()),
+                        tabs: TabsState::default(),
+                    },
+                    webview_mode: WebViewModeState {
+                        keybind_panel_expanded: Default::default(),
 
-                    panel_expanded: HashMap::new(),
+                        webview: webview_state,
+                    },
                 }));
 
                 return AppTask::batch([
-                    AppTask::done(AppMsg::DirectoryTree(DirectoryTreeEvent::Toggled(home_dir))),
+                    AppTask::done(AppMsg::TerminalMode(
+                        DirectoryTreeEvent::Toggled(home_dir).into(),
+                    )),
                     webview_init_task,
                     match new_tab_tasks.is_empty() {
-                        true => AppTask::done(TTermTabAction::New(None).into()),
+                        true => AppTask::done(TerminalModeTabAction::New(None).into()),
                         false => AppTask::batch(new_tab_tasks),
                     },
                 ]);
             }
 
-            AppMsg::UpdateFocusedDirectoryTree => {
-                let (tabs, directory_tree) = get_main_state![tabs_state, directory_tree_state];
-                let Some((_, focused_pane)) = tabs.focused_pane() else {
+            AppMsg::SwitchMode(mode) => {
+                self.current_mode = mode;
+            }
+
+            AppMsg::TerminalMode(msg) => {
+                let Some((config, state)) = self.config.as_ref().and_then(|config| match &mut self
+                    .state
+                {
+                    AppState::LoadingConfig => None,
+                    AppState::Main(main_state) => Some((config, main_state)),
+                }) else {
                     return AppTask::none();
                 };
 
-                return directory_tree.update_path(focused_pane);
+                return TerminalMode.update(msg, config, state);
             }
-            AppMsg::DirectoryTree(event) => {
-                let directory_tree = get_main_state![directory_tree_state];
-                return directory_tree.update(event);
-            }
-
-            AppMsg::RenameTabInput(new_input) => {
-                let tabs = get_main_state![tabs_state];
-                tabs.rename_input(new_input);
-            }
-            AppMsg::RenameCurrentTab(new_name) => {
-                let new_name = new_name.trim();
-
-                if new_name.is_empty() {
+            AppMsg::WebViewMode(msg) => {
+                let Some((config, state)) = self.config.as_ref().and_then(|config| match &mut self
+                    .state
+                {
+                    AppState::LoadingConfig => None,
+                    AppState::Main(main_state) => Some((config, main_state)),
+                }) else {
                     return AppTask::none();
-                }
+                };
 
-                let tabs = get_main_state![tabs_state];
-
-                return tabs.rename_current_tab(new_name);
-            }
-            AppMsg::CloseTab(id) => {
-                let tabs = get_main_state![tabs_state];
-                return tabs.close(id);
-            }
-            AppMsg::TabResetFloating(id) => {
-                let tabs = get_main_state![tabs_state];
-                return tabs.reset_floating(id);
-            }
-            AppMsg::FocusPane(id) => {
-                let tabs = get_main_state![tabs_state];
-                return tabs.focus_pane(id);
+                return WebViewMode.update(msg, config, state);
             }
 
-            AppMsg::Pane(pane_msg) => {
-                let tabs = get_main_state![tabs_state];
-                return tabs.update_pane(pane_msg);
+            AppMsg::IcedEvent(event) => {
+                return AppTask::done(match self.current_mode {
+                    TTermModeVariant::Terminal => TerminalModeMessage::IcedEvent(event).into(),
+                    TTermModeVariant::WebView => WebViewModeMessage::IcedEvent(event).into(),
+                });
             }
-
-            AppMsg::PanelToggle { ty, force } => {
-                let panel_expanded = get_main_state![panel_expanded];
-                let entry = panel_expanded.entry(ty).or_default();
-
-                *entry = force.unwrap_or(!*entry);
-            }
-
-            AppMsg::Action(tterm_action) => {
-                let (config, tabs) = get_main_state![config, tabs_state];
-
-                match tterm_action {
-                    TTermAction::Tab(act) => match act {
-                        TTermTabAction::New(tab_config) => {
-                            let (tab, task) = match Tab::builder()
-                                .terminal_config(&config.terminal)
-                                .keybinds_config(&config.keybinds)
-                                .maybe_tab_config(tab_config)
-                                .build()
-                            {
-                                Ok(tab) => tab,
-                                Err(err) => {
-                                    return AppTask::done(AppMsg::Error {
-                                        message: err.to_string(),
-                                        critical: true,
-                                    });
-                                }
-                            };
-
-                            tabs.tabs.push(tab);
-
-                            return AppTask::batch([
-                                AppTask::done(TTermTabAction::Select(tabs.tabs.len() - 1).into()),
-                                task,
-                            ]);
-                        }
-                        TTermTabAction::CloseFocused => {
-                            return AppTask::done(AppMsg::CloseTab(tabs.tabs[tabs.current].id));
-                        }
-                        TTermTabAction::Select(index) => {
-                            let index = index.clamp(0, tabs.tabs.len().saturating_sub(1));
-
-                            tabs.current = index;
-
-                            if tabs.tabs.is_empty() {
-                                return AppTask::none();
-                            }
-
-                            let current_tab = &mut tabs.tabs[tabs.current];
-
-                            tabs.rename_content = current_tab.name.clone().unwrap_or_default();
-
-                            let Some((_, pane_state)) = current_tab
-                                .panes
-                                .get_mut(&current_tab.current_panes_type)
-                                .and_then(|panes| panes.focused_pane_mut())
-                            else {
-                                return AppTask::none();
-                            };
-
-                            return AppTask::done(AppMsg::FocusPane(pane_state.id));
-                        }
-                        TTermTabAction::FocusedToggleFloating => {
-                            let Some(current_tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            return current_tab.toggle_floating(&config.terminal, &config.keybinds);
-                        }
-                        TTermTabAction::FocusedTogglePaneStacking => {
-                            let Some(current_tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            current_tab.toggle_stacking();
-                        }
-                        TTermTabAction::ToggleRename => {
-                            let tabs = get_main_state!(tabs_state);
-                            tabs.rename_mode = true;
-
-                            return widget::operation::focus("rename-tab-editor");
-                        }
-                    },
-                    TTermAction::Pane(act) => match act {
-                        TTermPaneAction::SplitFocused(direction) => {
-                            let Some(current_tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            return match current_tab.split_focused(
-                                direction,
-                                &config.terminal,
-                                &config.keybinds,
-                            ) {
-                                Ok(task) => task,
-                                Err(err) => AppTask::done(AppMsg::Error {
-                                    message: err.to_string(),
-                                    critical: false,
-                                }),
-                            };
-                        }
-                        TTermPaneAction::CloseFocused => {
-                            let Some(tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            return tab.close_focused_pane();
-                        }
-                        TTermPaneAction::MoveFocused(direction) => {
-                            let Some(tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            return tab.move_focused_pane(direction);
-                        }
-                    },
-                    TTermAction::General(act) => match act {
-                        TTermGeneralAction::Focus(direction) => {
-                            let Some(tab) = tabs.current_tab_mut() else {
-                                return AppTask::none();
-                            };
-
-                            match tab.focus_pane_directional(direction) {
-                                Some(task) => return task,
-                                None => match direction {
-                                    MoveFocusDirection::Left => {
-                                        return AppTask::done(
-                                            TTermTabAction::Select(match tabs.current {
-                                                0 => tabs.tabs.len() - 1,
-                                                _ => tabs.current - 1,
-                                            })
-                                            .into(),
-                                        );
-                                    }
-                                    MoveFocusDirection::Right => {
-                                        return AppTask::done(
-                                            TTermTabAction::Select(
-                                                match tabs.current >= tabs.tabs.len() - 1 {
-                                                    true => 0,
-                                                    false => tabs.current + 1,
-                                                },
-                                            )
-                                            .into(),
-                                        );
-                                    }
-                                    _ => {}
-                                },
-                            }
-                        }
-                        TTermGeneralAction::KeyBindPanelsToggle => {
-                            let panel_expanded = get_main_state![panel_expanded];
-                            let expanded =
-                                panel_expanded.values().next().copied().unwrap_or_default();
-
-                            return AppTask::batch(KeyBindPanelType::VARIANTS.iter().map(|ty| {
-                                AppTask::done(AppMsg::PanelToggle {
-                                    ty: *ty,
-                                    force: Some(!expanded),
-                                })
-                            }));
-                        }
-                        TTermGeneralAction::DirectoryTreeToggle => {
-                            let (directory_tree, tabs) =
-                                get_main_state!(directory_tree_state, tabs_state);
-                            directory_tree.show = !directory_tree.show;
-
-                            if let Some((_, pane)) =
-                                tabs.current_tab().and_then(|t| t.focused_pane())
-                            {
-                                return AppTask::done(AppMsg::FocusPane(pane.id));
-                            }
-                        }
-                        TTermGeneralAction::WebViewToggle => {
-                            let (tabs, webview) = get_main_state![tabs_state, webview_state];
-
-                            if let Some(after_toggle) = webview.toggle(
-                                tabs.current_tab()
-                                    .and_then(|t| t.focused_pane())
-                                    .map(|x| x.1.id),
-                            ) {
-                                return after_toggle;
-                            }
-                        }
-                    },
-                }
-            }
-
-            AppMsg::WebViewCreatedView => {
-                let webview = get_main_state![webview_state];
-                return webview.created_view();
-            }
-            AppMsg::WebView(action) => {
-                let (webview, config) = get_main_state![webview_state, config];
-                return webview.action(action, &config.webview);
-            }
-            AppMsg::UpdateUrlInput(new_url) => {
-                let webview = get_main_state![webview_state];
-                webview.update_url_input(new_url);
-            }
-
-            AppMsg::IcedEvent(event) => match event {
-                iced::Event::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(keyboard::key::Named::Escape),
-                    repeat: false,
-                    ..
-                }) => {
-                    let tabs = get_main_state![tabs_state];
-
-                    if tabs.rename_mode {
-                        tabs.rename_mode = false;
-                        return AppTask::done(TTermTabAction::Select(tabs.current).into());
-                    }
-                }
-                iced::Event::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(keyboard::key::Named::F5),
-                    repeat: false,
-                    ..
-                }) => {
-                    let webview = get_main_state![webview_state];
-                    return webview.refresh();
-                }
-                iced::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                    let (tabs, config) = get_main_state![tabs_state, config];
-
-                    if tabs.rename_mode {
-                        return AppTask::none();
-                    }
-
-                    let Some(current_tab) = tabs.current_tab() else {
-                        return AppTask::none();
-                    };
-
-                    let Some((_, focused_pane)) = current_tab.focused_pane() else {
-                        return AppTask::none();
-                    };
-
-                    let scroll_delta = match delta {
-                        mouse::ScrollDelta::Lines { y, .. } => {
-                            (y * config.terminal.scroll_acceleration) as i32
-                        }
-                        mouse::ScrollDelta::Pixels { y, .. } => {
-                            (y * config.terminal.scroll_acceleration / config.terminal.font.size)
-                                as i32
-                        }
-                    };
-
-                    if scroll_delta != 0 {
-                        return AppTask::done(
-                            IdPaneMessage {
-                                id: focused_pane.id,
-                                msg: PaneMessage::TerminalMsg(iced_term::Event::BackendCall(
-                                    focused_pane.term_id,
-                                    iced_term::BackendCommand::Scroll(scroll_delta),
-                                )),
-                            }
-                            .into(),
-                        );
-                    }
-                }
-                _ => {
-                    // TODO
-                }
-            },
         }
 
         AppTask::none()
@@ -535,152 +240,13 @@ impl App {
         let AppState::Main(state) = &self.state else {
             return AppSubscription::none();
         };
-        let MainState {
-            config,
-            tabs_state,
-            webview_state,
-            ..
-        } = state.as_ref();
-
-        let keybind_subscription =
-            iced::event::listen_with(move |event, _, _window_id| Some(event))
-                .with((
-                    config
-                        .keybinds
-                        .actions
-                        .iter()
-                        .map(|(keybind, action)| {
-                            (
-                                KeyBindPanelType::from(action),
-                                keybind.clone(),
-                                action.clone(),
-                            )
-                        })
-                        .collect::<Vec<_>>(),
-                    config.general.reactive_panels,
-                    webview_state.show,
-                ))
-                .map(
-                    |((binds, reactive_panels, show_webview), event)| match event {
-                        iced::Event::Keyboard(keyboard_event) => match keyboard_event {
-                            keyboard::Event::KeyPressed {
-                                key,
-                                modified_key,
-                                physical_key,
-                                location,
-                                modifiers,
-                                text,
-                                repeat,
-                            } => {
-                                vec![
-                                    (!repeat)
-                                        .then(|| {
-                                            binds.into_iter().find_map(
-                                                |(
-                                                    _,
-                                                    KeyBind {
-                                                        key: bind_key,
-                                                        modifiers: bind_modifiers,
-                                                    },
-                                                    action,
-                                                )| {
-                                                    let iced_key: iced::keyboard::Key =
-                                                        bind_key.into();
-                                                    let iced_modifiers =
-                                                        bind_modifiers.into_iter().fold(
-                                                            keyboard::Modifiers::empty(),
-                                                            |mods, mod_| match mod_ {
-                                                                Modifier::Ctrl => {
-                                                                    mods | keyboard::Modifiers::CTRL
-                                                                }
-                                                                Modifier::Shift => {
-                                                                    mods
-                                                                        | keyboard::Modifiers::SHIFT
-                                                                }
-                                                                Modifier::Alt => {
-                                                                    mods | keyboard::Modifiers::ALT
-                                                                }
-                                                            },
-                                                        );
-
-                                                    ([&key, &modified_key].contains(&&iced_key)
-                                                        && iced_modifiers == modifiers)
-                                                        .then_some(AppMsg::Action(action))
-                                                },
-                                            )
-                                        })
-                                        .flatten()
-                                        .and_then(|msg| match show_webview {
-                                            true => match msg {
-                                                AppMsg::Action(TTermAction::General(
-                                                    TTermGeneralAction::KeyBindPanelsToggle
-                                                    | TTermGeneralAction::WebViewToggle,
-                                                )) => Some(msg),
-                                                _ => None,
-                                            },
-                                            false => Some(msg),
-                                        })
-                                        .unwrap_or_else(|| {
-                                            AppMsg::IcedEvent(iced::Event::Keyboard(
-                                                iced::keyboard::Event::KeyPressed {
-                                                    key,
-                                                    modified_key,
-                                                    physical_key,
-                                                    location,
-                                                    modifiers,
-                                                    text,
-                                                    repeat,
-                                                },
-                                            ))
-                                        }),
-                                ]
-                            }
-                            keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
-                                true => {
-                                    let changed_mods = modifiers
-                                        .iter()
-                                        .filter_map(|m| match m {
-                                            keyboard::Modifiers::SHIFT => Some(Modifier::Shift),
-                                            keyboard::Modifiers::CTRL => Some(Modifier::Ctrl),
-                                            keyboard::Modifiers::ALT => Some(Modifier::Alt),
-                                            _ => None,
-                                        })
-                                        .collect::<Vec<_>>();
-
-                                    binds
-                                        .into_iter()
-                                        .map(|(t, b, _)| (b, t))
-                                        .unique()
-                                        .map(|(b, ty)| {
-                                            let open = b
-                                                .modifiers
-                                                .iter()
-                                                .any(|m| changed_mods.contains(m));
-
-                                            AppMsg::PanelToggle {
-                                                ty,
-                                                force: Some(open),
-                                            }
-                                        })
-                                        .collect::<Vec<_>>()
-                                }
-                                false => {
-                                    vec![]
-                                }
-                            },
-                            ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
-                        },
-                        _ => vec![AppMsg::IcedEvent(event)],
-                    },
-                );
-        let tab_subscriptions =
-            AppSubscription::batch(tabs_state.tabs.iter().map(Tab::subscription));
-        let webview_subscription = webview_state.subscription();
+        let Some(config) = &self.config else {
+            return AppSubscription::none();
+        };
 
         AppSubscription::batch([
-            keybind_subscription.map(Into::into),
-            tab_subscriptions,
-            webview_subscription,
+            TerminalMode.subscription(config, state),
+            WebViewMode.subscription(config, state),
         ])
     }
 
@@ -696,14 +262,10 @@ pub enum AppState {
     Main(Box<MainState>),
 }
 
+#[derive(derive_more::AsRef, derive_more::AsMut)]
 pub struct MainState {
-    pub config: Box<Config>,
-
-    pub directory_tree_state: DirectoryTreeState,
-    pub tabs_state: TabsState,
-    pub webview_state: WebViewState,
-
-    pub panel_expanded: HashMap<KeyBindPanelType, bool>,
+    pub terminal_mode: TerminalModeState,
+    pub webview_mode: WebViewModeState,
 }
 
 #[derive(Debug, Clone, From)]
@@ -719,36 +281,11 @@ pub enum AppMsg {
     LoadConfig,
     LoadedConfig(Box<Config>),
 
-    UpdateFocusedDirectoryTree,
-    DirectoryTree(DirectoryTreeEvent),
+    SwitchMode(TTermModeVariant),
+    TerminalMode(<TerminalMode as TTermMode>::Message),
+    WebViewMode(<WebViewMode as TTermMode>::Message),
 
-    #[from(skip)]
-    RenameTabInput(String),
-    #[from(skip)]
-    RenameCurrentTab(String),
-    #[from(skip)]
-    CloseTab(Uuid),
-    #[from(skip)]
-    TabResetFloating(Uuid),
-    #[from(skip)]
-    FocusPane(Uuid),
-
-    Pane(IdPaneMessage),
-
-    #[from(skip)]
-    PanelToggle {
-        ty: KeyBindPanelType,
-        force: Option<bool>,
-    },
-
-    #[from(skip)]
-    Action(TTermAction),
-
-    WebViewCreatedView,
-    WebView(iced_webview::Action),
-    UpdateUrlInput(String),
-
-    IcedEvent(iced::Event),
+    IcedEvent(Event),
 }
 
 impl AppMsg {

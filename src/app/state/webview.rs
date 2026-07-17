@@ -1,9 +1,8 @@
 use iced::mouse;
 use iced_webview::{PageType, WebView};
-use uuid::Uuid;
 
 use crate::{
-    app::{AppMsg, AppSubscription, AppTask},
+    app::{AppMsg, AppSubscription, AppTask, mode::webview::WebViewModeMessage},
     config::webview::WebViewConfig,
 };
 
@@ -11,7 +10,6 @@ pub type WebViewEngine = iced_webview::Servo;
 pub type AppWebView = WebView<WebViewEngine, AppMsg>;
 
 pub struct WebViewState {
-    pub show: bool,
     pub webview: AppWebView,
     pub url_input: String,
 }
@@ -21,36 +19,26 @@ impl WebViewState {
         let default_url = default_url.into();
 
         let res = Self {
-            show: false,
             webview: WebView::new()
-                .on_action(AppMsg::WebView)
-                .on_create_view(AppMsg::WebViewCreatedView)
-                .on_url_change(AppMsg::UpdateUrlInput),
+                .on_action(|action| WebViewModeMessage::WebView(action).into())
+                .on_create_view(WebViewModeMessage::WebViewCreatedView.into())
+                .on_url_change(|new_url| WebViewModeMessage::UpdateUrlInput(new_url).into()),
 
             url_input: default_url.clone(),
         };
-        let task = AppTask::done(AppMsg::WebView(iced_webview::Action::CreateView(
-            PageType::Url(default_url),
-        )));
+        let task = AppTask::done(
+            WebViewModeMessage::WebView(iced_webview::Action::CreateView(PageType::Url(
+                default_url,
+            )))
+            .into(),
+        );
 
         (res, task)
     }
 
-    pub fn toggle(&mut self, focused_pane: Option<Uuid>) -> Option<AppTask> {
-        self.show = !self.show;
-
-        if !self.show
-            && let Some(pane_id) = focused_pane
-        {
-            return Some(AppTask::done(AppMsg::FocusPane(pane_id)));
-        }
-
-        None
-    }
-
     pub fn created_view(&mut self) -> AppTask {
         self.url_input = self.webview.current_url().into();
-        AppTask::done(iced_webview::Action::ChangeView(0).into())
+        AppTask::done(WebViewModeMessage::WebView(iced_webview::Action::ChangeView(0)).into())
     }
 
     pub fn action(&mut self, mut action: iced_webview::Action, config: &WebViewConfig) -> AppTask {
@@ -75,13 +63,13 @@ impl WebViewState {
     }
 
     pub fn refresh(&mut self) -> AppTask {
-        match self.show {
-            true => AppTask::done(iced_webview::Action::Refresh.into()),
-            false => AppTask::none(),
-        }
+        AppTask::done(WebViewModeMessage::WebView(iced_webview::Action::Refresh).into())
     }
 
     pub fn subscription(&self) -> AppSubscription {
-        self.webview.subscription().map(Into::into)
+        self.webview
+            .subscription()
+            .map(WebViewModeMessage::WebView)
+            .map(Into::into)
     }
 }

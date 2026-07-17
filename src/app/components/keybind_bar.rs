@@ -7,24 +7,37 @@ use iced::{
 };
 use iced_aw::DropDown;
 use iced_fonts::lucide;
-use itertools::Itertools;
 use strum::VariantArray;
 
 use crate::{
-    app::{AppElement, AppMsg},
-    config::keybinds::{KeyBind, KeyBindPanelType, KeyBindsConfig, TTermAction},
+    app::{
+        AppElement,
+        mode::{TTermMode, TTermModeKeyBindPanelType, TTermModeMessage},
+    },
+    config::keybinds::{KeyBind, KeyBindsConfig},
     fonts,
 };
 
-pub struct KeyBindBar<'a> {
-    keybinds_config: &'a KeyBindsConfig,
-    keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
+pub struct KeyBindBar<'a, M>
+where
+    M: TTermMode,
+{
+    keybinds_config: &'a KeyBindsConfig<M>,
+    keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
 }
 
-impl<'a> KeyBindBar<'a> {
+type ModeBinds<'a, M> = &'a [(
+    <M as TTermMode>::KeyBindPanelType,
+    Vec<(KeyBind, <M as TTermMode>::Action)>,
+)];
+
+impl<'a, M> KeyBindBar<'a, M>
+where
+    M: TTermMode,
+{
     pub fn new(
-        keybinds_config: &'a KeyBindsConfig,
-        keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
+        keybinds_config: &'a KeyBindsConfig<M>,
+        keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
     ) -> Self {
         Self {
             keybinds_config,
@@ -41,7 +54,7 @@ impl<'a> KeyBindBar<'a> {
         const PADDING: u32 = 5;
         const SPACING: u32 = 5;
 
-        let panels = <KeyBindPanelType as VariantArray>::VARIANTS
+        let panels = <M::KeyBindPanelType as VariantArray>::VARIANTS
             .iter()
             .map(|ty| Self::panel(*ty, &keybinds_config.actions, keybind_panel_expanded))
             .collect::<Vec<_>>();
@@ -62,28 +75,22 @@ impl<'a> KeyBindBar<'a> {
     }
 
     fn panel(
-        ty: KeyBindPanelType,
-        binds: &'a [(KeyBind, TTermAction)],
-        keybind_panel_expanded: &'a HashMap<KeyBindPanelType, bool>,
+        ty: M::KeyBindPanelType,
+        binds: ModeBinds<'a, M>,
+        keybind_panel_expanded: &'a HashMap<M::KeyBindPanelType, bool>,
     ) -> AppElement<'a> {
         let binds = binds
             .iter()
-            .filter(|(_, action)| {
-                matches!(
-                    (action, ty),
-                    (TTermAction::Tab(_), KeyBindPanelType::Tab)
-                        | (TTermAction::Pane(_), KeyBindPanelType::Pane)
-                        | (TTermAction::General(_), KeyBindPanelType::General),
-                )
-            })
-            .sorted_by_key(|(_, action)| action.to_string());
+            .find_map(|(bt, binds)| (bt == &ty).then(|| binds.iter()))
+            .into_iter()
+            .flatten();
         let table = table(
             [
                 table::column(
                     text("Binding").center(),
-                    |(bind, _): &(KeyBind, TTermAction)| text(bind.to_string()).center(),
+                    |(bind, _): &(KeyBind, M::Action)| text(bind.to_string()).center(),
                 ),
-                table::column(text("Action"), |(_, action): &(KeyBind, TTermAction)| {
+                table::column(text("Action"), |(_, action): &(KeyBind, M::Action)| {
                     text(action.to_string()).center()
                 }),
             ],
@@ -113,15 +120,17 @@ impl<'a> KeyBindBar<'a> {
             .height(Length::Shrink),
         )
         .style(style::panel_button(expanded))
-        .on_press(AppMsg::PanelToggle { ty, force: None });
+        .on_press(
+            <<M as TTermMode>::Message as TTermModeMessage<M>>::panel_toggle(ty, None).into(),
+        );
 
         let panel = center(table).padding(5).style(style::panel);
 
         DropDown::new(panel_button, panel, expanded)
-            .on_dismiss(AppMsg::PanelToggle {
-                ty,
-                force: Some(false),
-            })
+            .on_dismiss(
+                <<M as TTermMode>::Message as TTermModeMessage<M>>::panel_toggle(ty, Some(false))
+                    .into(),
+            )
             .alignment(iced_aw::core::alignment::Alignment::Top)
             .into()
     }

@@ -1,84 +1,136 @@
 use chumsky::prelude::*;
 use derive_more::Display;
-use iced::widget::pane_grid;
+use iced::{Event, event, keyboard, widget::pane_grid};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize, de::Visitor};
 
-use tterm_macros::actions;
-
-use crate::config::{common::SplitDirection, presets::TabConfig};
+use crate::app::{
+    AppMsg, AppSubscription,
+    mode::{ModeBindsList, TTermMode, TTermModeAction, TTermModeMessage},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct KeyBindsConfig {
-    pub actions: Vec<(KeyBind, TTermAction)>,
+pub struct KeyBindsConfig<M>
+where
+    M: TTermMode,
+{
+    pub actions: ModeBindsList<M>,
 }
 
-impl Default for KeyBindsConfig {
-    fn default() -> Self {
-        Self {
-            actions: TTermAction::default_keybinds()
-                .into_iter()
-                .flat_map(|(_, map)| map.into_iter())
-                .collect(),
-        }
+impl<M> KeyBindsConfig<M>
+where
+    M: TTermMode,
+{
+    pub fn subscription(&self, reactive_panels: bool) -> AppSubscription {
+        event::listen_with(move |event, _, _window_id| Some(event))
+            .with((self.actions.clone(), reactive_panels))
+            .map(|((actions, reactive_panels), event)| match event {
+                Event::Keyboard(keyboard_event) => match keyboard_event {
+                    keyboard::Event::KeyPressed {
+                        key,
+                        modified_key,
+                        physical_key,
+                        location,
+                        modifiers,
+                        text,
+                        repeat,
+                    } => vec![
+                        (!repeat)
+                            .then(|| {
+                                actions.into_iter().find_map(|(_, binds)| {
+                                    binds.into_iter().find_map(
+                                        |(
+                                            KeyBind {
+                                                key: bind_key,
+                                                modifiers: bind_modifiers,
+                                            },
+                                            action,
+                                        )| {
+                                            let iced_key: iced::keyboard::Key = bind_key.into();
+                                            let iced_modifiers = bind_modifiers.into_iter().fold(
+                                                keyboard::Modifiers::empty(),
+                                                |mods, mod_| match mod_ {
+                                                    Modifier::Ctrl => {
+                                                        mods | keyboard::Modifiers::CTRL
+                                                    }
+                                                    Modifier::Shift => {
+                                                        mods | keyboard::Modifiers::SHIFT
+                                                    }
+                                                    Modifier::Alt => {
+                                                        mods | keyboard::Modifiers::ALT
+                                                    }
+                                                },
+                                            );
+
+                                            ([&key, &modified_key].contains(&&iced_key)
+                                                && iced_modifiers == modifiers)
+                                                .then_some(Into::<AppMsg>::into(action))
+                                        },
+                                    )
+                                })
+                            })
+                            .flatten()
+                            .unwrap_or_else(|| {
+                                AppMsg::IcedEvent(iced::Event::Keyboard(
+                                    iced::keyboard::Event::KeyPressed {
+                                        key,
+                                        modified_key,
+                                        physical_key,
+                                        location,
+                                        modifiers,
+                                        text,
+                                        repeat,
+                                    },
+                                ))
+                            }),
+                    ],
+                    keyboard::Event::ModifiersChanged(modifiers) => match reactive_panels {
+                        true => {
+                            let changed_mods = modifiers
+                                .iter()
+                                .filter_map(|m| match m {
+                                    keyboard::Modifiers::SHIFT => Some(Modifier::Shift),
+                                    keyboard::Modifiers::CTRL => Some(Modifier::Ctrl),
+                                    keyboard::Modifiers::ALT => Some(Modifier::Alt),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+
+                            actions
+                                .into_iter()
+                                .map(|(ty, binds)| {
+                                    let open =
+                                        binds.into_iter().map(|(b, _)| b).unique().any(|b| {
+                                            b.modifiers.iter().any(|m| changed_mods.contains(m))
+                                        });
+
+                                    <M::Message as TTermModeMessage<M>>::panel_toggle(
+                                        ty,
+                                        Some(open),
+                                    )
+                                    .into()
+                                })
+                                .collect::<Vec<_>>()
+                        }
+                        false => vec![],
+                    },
+                    ev => vec![AppMsg::IcedEvent(iced::Event::Keyboard(ev))],
+                },
+                _ => vec![AppMsg::IcedEvent(event)],
+            })
+            .map(AppMsg::Multiple)
     }
 }
 
-actions! {
-    Tab: [
-        #[display("New Tab")]
-        New(Option<TabConfig>) [ @[Ctrl+Shift] + "T" => (None) ],
-        #[display("Close Tab")]
-        CloseFocused           [ @[Ctrl+Shift] + "W" ],
-        #[display("Select Tab {_0}")]
-        Select(usize)          [
-            @[Ctrl+Shift] + "1" => (0),
-            @[Ctrl+Shift] + "2" => (1),
-            @[Ctrl+Shift] + "3" => (2),
-            @[Ctrl+Shift] + "4" => (3),
-            @[Ctrl+Shift] + "5" => (4),
-            @[Ctrl+Shift] + "6" => (5),
-            @[Ctrl+Shift] + "7" => (6),
-            @[Ctrl+Shift] + "8" => (7),
-            @[Ctrl+Shift] + "9" => (8),
-        ],
-        #[display("Toggle Floating Panes")]
-        FocusedToggleFloating     [ @[Ctrl+Shift] + "E" ],
-        #[display("Toggle Pane stacking")]
-        FocusedTogglePaneStacking [ @[Ctrl+Shift] + "S" ],
-        ToggleRename              [ @[Ctrl+Shift] + "R" ],
-    ],
-    Pane: [
-        #[display("Split Pane {}", match _0 {
-            SplitDirection::Vertical => "Vertically",
-            SplitDirection::Horizontal => "Horizontally"
-        })]
-        SplitFocused(SplitDirection) [
-            @[Alt] + "V" => (SplitDirection::Vertical),
-            @[Alt] + "H" => (SplitDirection::Horizontal),
-        ],
-        #[display("Close Focused Pane")]
-        CloseFocused [ @[Alt] + "W" ],
-        #[display("Move Pane {_0}")]
-        MoveFocused(MoveFocusDirection) [
-            @[Alt+Shift] + @ArrowLeft => (MoveFocusDirection::Left),
-            @[Alt+Shift] + @ArrowRight => (MoveFocusDirection::Right),
-            @[Alt+Shift] + @ArrowUp => (MoveFocusDirection::Up),
-            @[Alt+Shift] + @ArrowDown => (MoveFocusDirection::Down),
-        ],
-    ],
-    General: [
-        #[display("Focus {_0}")]
-        Focus(MoveFocusDirection) [
-            @[Alt] + @ArrowLeft => (MoveFocusDirection::Left),
-            @[Alt] + @ArrowRight => (MoveFocusDirection::Right),
-            @[Alt] + @ArrowUp => (MoveFocusDirection::Up),
-            @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
-        ],
-        KeyBindPanelsToggle [ @[Alt+Shift] + "K" ],
-        DirectoryTreeToggle [ @[Alt+Shift] + "E" ],
-        WebViewToggle       [ @[Alt+Shift] + "B" ],
-    ]
+impl<M> Default for KeyBindsConfig<M>
+where
+    M: TTermMode,
+{
+    fn default() -> Self {
+        Self {
+            actions: <<M as TTermMode>::Action as TTermModeAction<M>>::default_keybinds(),
+        }
+    }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

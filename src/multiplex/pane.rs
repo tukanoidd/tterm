@@ -19,9 +19,15 @@ use uuid::Uuid;
 static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 use crate::{
-    app::{AppElement, AppMsg, AppSubscription, AppTask},
+    app::{
+        AppElement, AppMsg, AppSubscription, AppTask,
+        mode::{
+            TTermMode,
+            terminal::{TerminalMode, TerminalModePaneAction},
+        },
+    },
     config::{
-        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier, TTermPaneAction},
+        keybinds::{Key, KeyBind, KeyBindsConfig, Modifier},
         presets::ProgramConfig,
         terminal::TerminalConfig,
     },
@@ -43,7 +49,7 @@ impl PaneState {
     pub fn new(
         id: Uuid,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         working_directory: Option<PathBuf>,
         program_config: Option<ProgramConfig>,
     ) -> Result<Self> {
@@ -92,6 +98,7 @@ impl PaneState {
             keybinds_config
                 .actions
                 .iter()
+                .flat_map(|(_, l)| l)
                 .map(|(KeyBind { key, modifiers }, _)| {
                     (
                         iced_term::bindings::Binding {
@@ -135,9 +142,10 @@ impl PaneState {
                         id: self.id,
                         msg: e.into(),
                     })
+                    .map(<TerminalMode as TTermMode>::Message::from)
                     .map(AppMsg::from),
             )
-            .on_enter(AppMsg::FocusPane(self.id)),
+            .on_enter(<TerminalMode as TTermMode>::Message::FocusPane(self.id).into()),
         )
         .padding(4)
         .style(move |theme| {
@@ -151,7 +159,7 @@ impl PaneState {
         });
         let selection_items = || {
             column(
-                TTermPaneAction::default_keybinds()
+                TerminalModePaneAction::default_keybinds()
                     .into_iter()
                     .map(|(_, action)| {
                         button(text(action.to_string()))
@@ -177,10 +185,10 @@ impl PaneState {
                 match action {
                     iced_term::actions::Action::Shutdown => {
                         return Some(AppTask::done(
-                            IdPaneMessage {
+                            <TerminalMode as TTermMode>::Message::from(IdPaneMessage {
                                 id: self.id,
                                 msg: PaneMessage::Close,
-                            }
+                            })
                             .into(),
                         ));
                     }
@@ -213,7 +221,10 @@ impl PaneState {
                         }
 
                         if pwd_switched && is_focused {
-                            return Some(AppTask::done(AppMsg::UpdateFocusedDirectoryTree));
+                            return Some(AppTask::done(
+                                <TerminalMode as TTermMode>::Message::UpdateFocusedDirectoryTree
+                                    .into(),
+                            ));
                         }
                     }
                     _ => {}
@@ -232,6 +243,7 @@ impl PaneState {
             .subscription()
             .with(id)
             .map(|(id, e)| IdPaneMessage { id, msg: e.into() })
+            .map(<TerminalMode as TTermMode>::Message::from)
             .map(AppMsg::from)
     }
 

@@ -14,7 +14,10 @@ use rootcause::{Result, option_ext::OptionExt};
 use uuid::Uuid;
 
 use crate::{
-    app::{AppElement, AppMsg, AppSubscription, AppTask},
+    app::{
+        AppElement, AppMsg, AppSubscription, AppTask,
+        mode::{TTermMode, terminal::TerminalMode},
+    },
     config::{
         common::SplitDirection,
         keybinds::{KeyBindsConfig, MoveFocusDirection},
@@ -40,7 +43,7 @@ impl Tab {
     #[builder]
     pub fn new(
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         tab_config: Option<TabConfig>,
     ) -> Result<(Self, AppTask)> {
         let (name, (tab_pane_state, task), floating) = match tab_config {
@@ -130,7 +133,7 @@ impl Tab {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> Result<AppTask> {
         let Some(panes) = self.panes.get_mut(&self.current_panes_type) else {
             return Ok(AppTask::none());
@@ -163,10 +166,10 @@ impl Tab {
             .get_mut(&self.current_panes_type)
             .map(|s| {
                 AppTask::done(
-                    IdPaneMessage {
+                    <TerminalMode as TTermMode>::Message::from(IdPaneMessage {
                         id: s.focused_pane,
                         msg: PaneMessage::Close,
-                    }
+                    })
                     .into(),
                 )
             })
@@ -186,7 +189,7 @@ impl Tab {
     pub fn toggle_floating(
         &mut self,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> AppTask {
         let focused_pane_pwd = self
             .panes
@@ -226,7 +229,9 @@ impl Tab {
 
         let panes = self.panes.get_mut(&self.current_panes_type).unwrap();
 
-        tasks.push(AppTask::done(AppMsg::FocusPane(panes.focused_pane)));
+        tasks.push(AppTask::done(
+            <TerminalMode as TTermMode>::Message::FocusPane(panes.focused_pane).into(),
+        ));
 
         AppTask::batch(tasks)
     }
@@ -266,7 +271,7 @@ pub struct TabPanesState {
 impl TabPanesState {
     pub fn new(
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
         root_node_config: Option<PaneConfig>,
     ) -> Result<(Self, AppTask)> {
         let root_pane_id = Uuid::now_v7();
@@ -284,7 +289,7 @@ impl TabPanesState {
             }: &PaneConfig,
 
             terminal_config: &TerminalConfig,
-            keybinds_config: &KeyBindsConfig,
+            keybinds_config: &KeyBindsConfig<TerminalMode>,
         ) -> Result<()> {
             let id = Uuid::now_v7();
 
@@ -323,7 +328,8 @@ impl TabPanesState {
             Ok(())
         }
 
-        let task = AppTask::done(AppMsg::FocusPane(root_pane_id));
+        let task =
+            AppTask::done(<TerminalMode as TTermMode>::Message::FocusPane(root_pane_id).into());
         let panes = match root_node_config {
             Some(PaneConfig {
                 working_directory,
@@ -415,7 +421,10 @@ impl TabPanesState {
 
                                         style
                                     })
-                                    .on_press(AppMsg::FocusPane(state.id))
+                                    .on_press(
+                                        <TerminalMode as TTermMode>::Message::FocusPane(state.id)
+                                            .into(),
+                                    )
                                     .into()
                             }),
                     )
@@ -445,7 +454,7 @@ impl TabPanesState {
         &mut self,
         direction: SplitDirection,
         terminal_config: &TerminalConfig,
-        keybinds_config: &KeyBindsConfig,
+        keybinds_config: &KeyBindsConfig<TerminalMode>,
     ) -> Result<AppTask> {
         let Some((focused_pane, focused_pane_state)) = self.focused_pane() else {
             return Ok(AppTask::none());
@@ -468,7 +477,9 @@ impl TabPanesState {
             pane_state,
         );
 
-        Ok(AppTask::done(AppMsg::FocusPane(pane_id)))
+        Ok(AppTask::done(
+            <TerminalMode as TTermMode>::Message::FocusPane(pane_id).into(),
+        ))
     }
 
     pub fn focus_pane_directional(&mut self, direction: MoveFocusDirection) -> Option<AppTask> {
@@ -494,11 +505,21 @@ impl TabPanesState {
 
                 Some(match direction {
                     MoveFocusDirection::Up => match focused_ind > 0 {
-                        true => AppTask::done(AppMsg::FocusPane(list[focused_ind - 1].1.id)),
+                        true => AppTask::done(
+                            <TerminalMode as TTermMode>::Message::FocusPane(
+                                list[focused_ind - 1].1.id,
+                            )
+                            .into(),
+                        ),
                         false => AppTask::none(),
                     },
                     MoveFocusDirection::Down => match focused_ind < list.len() - 1 {
-                        true => AppTask::done(AppMsg::FocusPane(list[focused_ind + 1].1.id)),
+                        true => AppTask::done(
+                            <TerminalMode as TTermMode>::Message::FocusPane(
+                                list[focused_ind + 1].1.id,
+                            )
+                            .into(),
+                        ),
                         false => AppTask::none(),
                     },
                     _ => unreachable!(),
@@ -524,7 +545,9 @@ impl TabPanesState {
                             .find_map(|(p, s)| (p == &ap).then_some(s.id))
                     })?;
 
-                Some(AppTask::done(AppMsg::FocusPane(new_focus_pane)))
+                Some(AppTask::done(
+                    <TerminalMode as TTermMode>::Message::FocusPane(new_focus_pane).into(),
+                ))
             }
         }
     }
@@ -546,17 +569,20 @@ impl TabPanesState {
             .find_map(|(grid_id, p)| (p.id == id).then_some(grid_id))?;
 
         if self.panes.len() <= 1 {
-            return Some(AppTask::done(match floating {
-                true => AppMsg::TabResetFloating(tab_id),
-                false => AppMsg::CloseTab(tab_id),
-            }));
+            return Some(AppTask::done(
+                match floating {
+                    true => <TerminalMode as TTermMode>::Message::TabResetFloating(tab_id),
+                    false => <TerminalMode as TTermMode>::Message::CloseTab(tab_id),
+                }
+                .into(),
+            ));
         }
 
         let (_, neighbor) = self.panes.close(*grid_id)?;
 
         self.panes
             .get(neighbor)
-            .map(|s| AppTask::done(AppMsg::FocusPane(s.id)))
+            .map(|s| AppTask::done(<TerminalMode as TTermMode>::Message::FocusPane(s.id).into()))
     }
 
     pub fn move_focused_pane(&mut self, direction: MoveFocusDirection) -> Option<AppTask> {
@@ -573,7 +599,9 @@ impl TabPanesState {
             }
         }
 
-        Some(AppTask::done(AppMsg::FocusPane(focused_id)))
+        Some(AppTask::done(
+            <TerminalMode as TTermMode>::Message::FocusPane(focused_id).into(),
+        ))
     }
 
     fn update_pane(
@@ -593,13 +621,17 @@ impl TabPanesState {
             PaneMessage::Dragged(event) => match event {
                 pane_grid::DragEvent::Picked { pane } => {
                     let p = self.panes.get(*pane)?;
-                    Some(AppTask::done(AppMsg::FocusPane(p.id)))
+                    Some(AppTask::done(
+                        <TerminalMode as TTermMode>::Message::FocusPane(p.id).into(),
+                    ))
                 }
                 pane_grid::DragEvent::Dropped { pane, target } => {
                     self.panes.drop(*pane, *target);
 
                     let p = self.panes.get(*pane)?;
-                    Some(AppTask::done(AppMsg::FocusPane(p.id)))
+                    Some(AppTask::done(
+                        <TerminalMode as TTermMode>::Message::FocusPane(p.id).into(),
+                    ))
                 }
                 pane_grid::DragEvent::Canceled { .. } => None,
             },

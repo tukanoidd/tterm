@@ -13,9 +13,12 @@ use iced_fonts::lucide;
 use crate::{
     app::{
         AppElement, AppMsg, AppRenderer, AppTheme,
-        state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
+        mode::{
+            TTermMode,
+            terminal::{TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction},
+        },
+        state::{directory_tree::DirectoryTreeState, tabs::TabsState},
     },
-    config::keybinds::{TTermGeneralAction, TTermTabAction},
     fonts,
     multiplex::tab::Tab,
 };
@@ -23,20 +26,14 @@ use crate::{
 pub struct TabBar<'a> {
     tabs: &'a TabsState,
     directory_tree: &'a DirectoryTreeState,
-    webview: &'a WebViewState,
 }
 
 #[bon]
 impl<'a> TabBar<'a> {
-    pub fn new(
-        tabs: &'a TabsState,
-        directory_tree: &'a DirectoryTreeState,
-        webview: &'a WebViewState,
-    ) -> Self {
+    pub fn new(tabs: &'a TabsState, directory_tree: &'a DirectoryTreeState) -> Self {
         Self {
             tabs,
             directory_tree,
-            webview,
         }
     }
 
@@ -44,7 +41,6 @@ impl<'a> TabBar<'a> {
         let Self {
             tabs,
             directory_tree,
-            webview,
         } = self;
 
         let toggle_show_directory_tree_button = button(match directory_tree.show {
@@ -52,21 +48,20 @@ impl<'a> TabBar<'a> {
             false => lucide::panel_left_close(),
         })
         .style(button::subtle)
-        .on_press(TTermGeneralAction::DirectoryTreeToggle.into());
+        .on_press(TerminalModeGeneralAction::DirectoryTreeToggle.into());
 
         let scrollable_tab_list = Self::tab_list(tabs);
         let current_tab_name_editor = tabs.rename_mode.then(|| {
             text_input("Enter Tab Name...", &tabs.rename_content)
                 .id("rename-tab-editor")
-                .on_input(AppMsg::RenameTabInput)
+                .on_input(|input| {
+                    <TerminalMode as TTermMode>::Message::RenameTabInput(input).into()
+                })
         });
 
-        let toggle_webview_button = button(match webview.show {
-            true => lucide::search_x(),
-            false => lucide::search_slash(),
-        })
-        .style(button::subtle)
-        .on_press(TTermGeneralAction::WebViewToggle.into());
+        let toggle_webview_button = button(lucide::search())
+            .style(button::subtle)
+            .on_press(TerminalModeGeneralAction::ToWebView.into());
 
         container(
             row([
@@ -91,7 +86,7 @@ impl<'a> TabBar<'a> {
     fn tab_list(tabs: &'a TabsState) -> AppElement<'a> {
         scrollable(
             row(tabs
-                .tabs
+                .list
                 .iter()
                 .enumerate()
                 .map(Self::tab_badge(tabs.current, tabs.rename_mode))
@@ -136,7 +131,7 @@ impl<'a> TabBar<'a> {
                 .width(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .style(style::close_button)
-                .on_press(AppMsg::CloseTab(*id));
+                .on_press(<TerminalMode as TTermMode>::Message::CloseTab(*id).into());
             let badge = Self::badge()
                 .icon(icon)
                 .content(name_text)
@@ -147,18 +142,18 @@ impl<'a> TabBar<'a> {
                 .padding(2);
 
             ContextMenu::new(
-                mouse_area(badge).on_press(TTermTabAction::Select(ind).into()),
+                mouse_area(badge).on_press(TerminalModeTabAction::Select(ind).into()),
                 || {
                     column(
-                        TTermTabAction::default_keybinds()
+                        TerminalModeTabAction::default_keybinds()
                             .into_iter()
                             .filter(|(_, action)| {
                                 matches!(
                                     action,
-                                    TTermTabAction::CloseFocused
-                                        | TTermTabAction::FocusedToggleFloating
-                                        | TTermTabAction::FocusedTogglePaneStacking
-                                        | TTermTabAction::ToggleRename
+                                    TerminalModeTabAction::CloseFocused
+                                        | TerminalModeTabAction::FocusedToggleFloating
+                                        | TerminalModeTabAction::FocusedTogglePaneStacking
+                                        | TerminalModeTabAction::ToggleRename
                                 )
                             })
                             .map(|(_, action)| {
@@ -185,7 +180,7 @@ impl<'a> TabBar<'a> {
                 .style(iced_aw::style::badge::secondary)
                 .padding(6),
         )
-        .on_press(TTermTabAction::New(None).into())
+        .on_press(TerminalModeTabAction::New(None).into())
         .into()
     }
 

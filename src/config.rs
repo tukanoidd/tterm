@@ -5,25 +5,28 @@ pub mod presets;
 pub mod terminal;
 pub mod webview;
 
+use derive_more::AsRef;
 use directories::ProjectDirs;
 use rootcause::{Result, option_ext::OptionExt};
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
 
-use crate::config::{
-    general::GeneralConfig, keybinds::KeyBindsConfig, presets::PresetsConfig,
-    terminal::TerminalConfig, webview::WebViewConfig,
+use crate::{
+    app::mode::{terminal::TerminalModeConfig, webview::WebViewModeConfig},
+    config::{general::GeneralConfig, presets::PresetsConfig},
 };
 
-#[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
+#[derive(SmartDefault, Debug, Clone, AsRef, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub general: GeneralConfig,
     pub presets: PresetsConfig,
-    pub terminal: TerminalConfig,
-    pub keybinds: KeyBindsConfig,
-    pub webview: WebViewConfig,
+
+    #[as_ref]
+    pub terminal_mode: TerminalModeConfig,
+    #[as_ref]
+    pub webview_mode: WebViewModeConfig,
 }
 
 impl Config {
