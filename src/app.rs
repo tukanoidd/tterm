@@ -2,12 +2,14 @@ pub mod components;
 pub mod mode;
 pub mod state;
 
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use derive_more::From;
+use directories::ProjectDirs;
 use iced::{
     Event,
     alignment::Horizontal,
+    futures::lock::Mutex,
     widget::{center, column, rule, text},
 };
 use iced_aw::Spinner;
@@ -24,7 +26,9 @@ use crate::{
             },
             webview::{WebViewMode, WebViewModeMessage, WebViewModeState},
         },
-        state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
+        state::{
+            db::DbState, directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState,
+        },
     },
     config::{Config, presets::PresetConfig},
 };
@@ -45,9 +49,11 @@ pub struct App {
 
 impl App {
     pub fn boot() -> (Self, AppTask) {
+        let project_dirs = ProjectDirs::from("com", "tukanoid", "tterm").unwrap();
+
         let res = Self {
             config: None,
-            state: AppState::LoadingConfig,
+            state: AppState::LoadingConfig { project_dirs },
 
             current_mode: TTermModeVariant::Terminal,
         };
@@ -69,7 +75,7 @@ impl App {
 
     pub fn view(&self) -> AppElement<'_> {
         match &self.state {
-            AppState::LoadingConfig => center(
+            AppState::LoadingConfig { .. } => center(
                 column![
                     Spinner::new().width(20.0).height(20),
                     text("Loading config...")
@@ -119,8 +125,22 @@ impl App {
 
             AppMsg::Multiple(list) => return AppTask::batch(list.into_iter().map(AppTask::done)),
 
-            AppMsg::LoadConfig => return Self::load_config(),
+            AppMsg::LoadConfig => {
+                let project_dirs = match &self.state {
+                    AppState::LoadingConfig { project_dirs } => project_dirs,
+                    AppState::Main(main_state) => &main_state.project_dirs,
+                }
+                .clone();
+
+                return Self::load_config(project_dirs);
+            }
             AppMsg::LoadedConfig(config) => {
+                let project_dirs = match &self.state {
+                    AppState::LoadingConfig { project_dirs } => project_dirs,
+                    AppState::Main(main_state) => &main_state.project_dirs,
+                }
+                .clone();
+
                 let current_preset_name = CLI_PRESET
                     .get()
                     .cloned()
@@ -171,6 +191,8 @@ impl App {
 
                 self.config = Some(config);
                 self.state = AppState::Main(Box::new(MainState {
+                    project_dirs,
+
                     terminal_mode: TerminalModeState {
                         keybind_panel_expanded: Default::default(),
 
@@ -182,9 +204,12 @@ impl App {
 
                         webview: webview_state,
                     },
+
+                    db: None,
                 }));
 
                 return AppTask::batch([
+                    AppTask::done(AppMsg::LoadDb),
                     AppTask::done(AppMsg::TerminalMode(
                         DirectoryTreeEvent::Toggled(home_dir).into(),
                     )),
@@ -196,6 +221,22 @@ impl App {
                 ]);
             }
 
+            AppMsg::LoadDb => {
+                let project_dirs = match &self.state {
+                    AppState::LoadingConfig { project_dirs } => project_dirs,
+                    AppState::Main(main_state) => &main_state.project_dirs,
+                }
+                .clone();
+
+                return AppTask::perform(DbState::new(project_dirs), |res| {
+                    AppMsg::from_result(res.map(Mutex::new).map(Arc::new), AppMsg::LoadedDb, true)
+                });
+            }
+            AppMsg::LoadedDb(db) => match &mut self.state {
+                AppState::Main(main_state) => main_state.db = Some(db),
+                _ => {}
+            },
+
             AppMsg::SwitchMode(mode) => {
                 self.current_mode = mode;
             }
@@ -204,7 +245,7 @@ impl App {
                 let Some((config, state)) = self.config.as_ref().and_then(|config| match &mut self
                     .state
                 {
-                    AppState::LoadingConfig => None,
+                    AppState::LoadingConfig { .. } => None,
                     AppState::Main(main_state) => Some((config, main_state)),
                 }) else {
                     return AppTask::none();
@@ -216,7 +257,7 @@ impl App {
                 let Some((config, state)) = self.config.as_ref().and_then(|config| match &mut self
                     .state
                 {
-                    AppState::LoadingConfig => None,
+                    AppState::LoadingConfig { .. } => None,
                     AppState::Main(main_state) => Some((config, main_state)),
                 }) else {
                     return AppTask::none();
@@ -250,22 +291,26 @@ impl App {
         ])
     }
 
-    fn load_config() -> AppTask {
-        AppTask::perform(async move { Config::new().await }, |res| {
+    fn load_config(project_dirs: ProjectDirs) -> AppTask {
+        AppTask::perform(async move { Config::new(project_dirs).await }, |res| {
             AppMsg::from_result(res.map(Box::new), Into::into, true)
         })
     }
 }
 
 pub enum AppState {
-    LoadingConfig,
+    LoadingConfig { project_dirs: ProjectDirs },
     Main(Box<MainState>),
 }
 
 #[derive(derive_more::AsRef, derive_more::AsMut)]
 pub struct MainState {
+    pub project_dirs: ProjectDirs,
+
     pub terminal_mode: TerminalModeState,
     pub webview_mode: WebViewModeState,
+
+    pub db: Option<Arc<Mutex<DbState>>>,
 }
 
 #[derive(Debug, Clone, From)]
@@ -280,6 +325,9 @@ pub enum AppMsg {
 
     LoadConfig,
     LoadedConfig(Box<Config>),
+
+    LoadDb,
+    LoadedDb(Arc<Mutex<DbState>>),
 
     SwitchMode(TTermModeVariant),
     TerminalMode(<TerminalMode as TTermMode>::Message),

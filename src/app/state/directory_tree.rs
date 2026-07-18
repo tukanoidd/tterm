@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use iced::{Length, widget::container};
 use iced_swdir_tree::{DirectoryTree, DirectoryTreeEvent};
 
-use crate::{
-    app::{
-        AppElement, AppTask,
-        mode::{TTermMode, terminal::TerminalMode},
+use crate::app::{
+    AppElement, AppTask,
+    mode::{
+        TTermMode,
+        terminal::{TerminalMode, components::multiplex::pane::PaneState},
     },
-    multiplex::pane::PaneState,
 };
 
 pub struct DirectoryTreeState {

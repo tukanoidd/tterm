@@ -13,6 +13,8 @@ proc-macro2.workspace = true
 syn.workspace = true
 darling.workspace = true
 
+derive_more = { workspace = true, features = ["display"] }
+
 convert_case.workspace = true
 
 chumsky.workspace = true

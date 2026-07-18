@@ -2,17 +2,17 @@ use iced::widget::{center, pane_grid::Pane};
 use iced_aw::Spinner;
 use uuid::Uuid;
 
-use crate::{
-    app::{
-        AppElement, AppTask,
-        mode::{
-            TTermMode,
-            terminal::{TerminalMode, TerminalModeTabAction},
+use crate::app::{
+    AppElement, AppTask,
+    mode::{
+        TTermMode,
+        terminal::{
+            TerminalMode, TerminalModeTabAction,
+            components::multiplex::{
+                pane::{IdPaneMessage, PaneState},
+                tab::{Tab, TabPanesType},
+            },
         },
-    },
-    multiplex::{
-        pane::{IdPaneMessage, PaneState},
-        tab::{Tab, TabPanesType},
     },
 };
 

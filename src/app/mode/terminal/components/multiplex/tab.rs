@@ -16,7 +16,13 @@ use uuid::Uuid;
 use crate::{
     app::{
         AppElement, AppMsg, AppSubscription, AppTask,
-        mode::{TTermMode, terminal::TerminalMode},
+        mode::{
+            TTermMode,
+            terminal::{
+                TerminalMode,
+                components::multiplex::pane::{IdPaneMessage, PaneState},
+            },
+        },
     },
     config::{
         common::SplitDirection,
@@ -24,7 +30,6 @@ use crate::{
         presets::{PaneConfig, PaneSplitConfig, TabConfig},
         terminal::TerminalConfig,
     },
-    multiplex::pane::{IdPaneMessage, PaneState},
 };
 
 use super::pane::PaneMessage;

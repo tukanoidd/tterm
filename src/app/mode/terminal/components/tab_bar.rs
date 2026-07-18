@@ -15,12 +15,14 @@ use crate::{
         AppElement, AppMsg, AppRenderer, AppTheme,
         mode::{
             TTermMode,
-            terminal::{TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction},
+            terminal::{
+                TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction,
+                components::multiplex::tab::Tab,
+            },
         },
         state::{directory_tree::DirectoryTreeState, tabs::TabsState},
     },
     fonts,
-    multiplex::tab::Tab,
 };
 
 pub struct TabBar<'a> {

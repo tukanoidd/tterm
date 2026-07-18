@@ -1,3 +1,5 @@
+pub mod components;
+
 use iced::{
     Event, Length, keyboard, mouse,
     widget::{self, column, row, rule},
@@ -9,7 +11,6 @@ use uuid::Uuid;
 use crate::{
     app::{
         AppElement, AppMsg, AppSubscription, AppTask,
-        components::tab_bar::TabBar,
         mode::{TTermMode, TTermModeVariant},
         state::{directory_tree::DirectoryTreeState, tabs::TabsState},
     },
@@ -17,10 +18,14 @@ use crate::{
         common::SplitDirection, keybinds::MoveFocusDirection, presets::TabConfig,
         terminal::TerminalConfig,
     },
+};
+
+use components::{
     multiplex::{
         pane::{IdPaneMessage, PaneMessage},
         tab::Tab,
     },
+    tab_bar::TabBar,
 };
 
 mode! {

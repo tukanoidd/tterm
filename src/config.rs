@@ -7,7 +7,7 @@ pub mod webview;
 
 use derive_more::AsRef;
 use directories::ProjectDirs;
-use rootcause::{Result, option_ext::OptionExt};
+use rootcause::Result;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
@@ -30,8 +30,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub async fn new() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("com", "tukanoid", "tterm").ok_or_report()?;
+    pub async fn new(project_dirs: ProjectDirs) -> Result<Self> {
         let config_dir = project_dirs.config_local_dir();
 
         if !config_dir.exists() {
