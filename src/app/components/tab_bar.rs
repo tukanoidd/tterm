@@ -57,6 +57,12 @@ impl<'a> TabBar<'a> {
                 .on_input(|input| {
                     <TerminalMode as TTermMode>::Message::RenameTabInput(input).into()
                 })
+                .on_submit(
+                    <TerminalMode as TTermMode>::Message::RenameCurrentTab(
+                        tabs.rename_content.clone(),
+                    )
+                    .into(),
+                )
         });
 
         let toggle_webview_button = button(lucide::search())
