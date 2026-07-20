@@ -232,10 +232,11 @@ impl App {
                     AppMsg::from_result(res.map(Mutex::new).map(Arc::new), AppMsg::LoadedDb, true)
                 });
             }
-            AppMsg::LoadedDb(db) => match &mut self.state {
-                AppState::Main(main_state) => main_state.db = Some(db),
-                _ => {}
-            },
+            AppMsg::LoadedDb(db) => {
+                if let AppState::Main(main_state) = &mut self.state {
+                    main_state.db = Some(db)
+                }
+            }
 
             AppMsg::SwitchMode(mode) => {
                 self.current_mode = mode;
