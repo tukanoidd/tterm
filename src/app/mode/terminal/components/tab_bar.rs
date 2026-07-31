@@ -15,9 +15,11 @@ use crate::{
         AppElement, AppMsg, AppRenderer, AppTheme,
         mode::{
             TTermMode,
-            terminal::{TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction},
+            terminal::{
+                TerminalMode, TerminalModeGeneralAction, TerminalModeTabAction,
+                state::{directory_tree::DirectoryTreeState, tabs::TabsState},
+            },
         },
-        state::{directory_tree::DirectoryTreeState, tabs::TabsState},
     },
     fonts,
     multiplex::tab::Tab,

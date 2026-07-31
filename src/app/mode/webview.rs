@@ -1,11 +1,17 @@
+pub mod components;
+pub mod state;
+
 use iced::keyboard;
 
 use tterm_macros::mode;
 
 use crate::{
     app::{
-        AppElement, AppMsg, AppSubscription, AppTask, components::webview_modal::WebViewModal,
-        mode::TTermModeVariant, state::webview::WebViewState,
+        AppElement, AppMsg, AppSubscription, AppTask,
+        mode::{
+            TTermModeVariant,
+            webview::{components::webview_modal::WebViewModal, state::webview::WebViewState},
+        },
     },
     config::webview::WebViewConfig,
 };

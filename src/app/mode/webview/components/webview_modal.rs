@@ -8,8 +8,7 @@ use iced_webview::WebView;
 
 use crate::app::{
     AppElement, AppMsg,
-    mode::webview::{WebViewModeGeneralAction, WebViewModeMessage},
-    state::webview::WebViewState,
+    mode::webview::{WebViewModeGeneralAction, WebViewModeMessage, state::webview::WebViewState},
 };
 
 pub type WebViewEngine = iced_webview::Servo;

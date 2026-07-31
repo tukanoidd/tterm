@@ -1,6 +1,5 @@
 pub mod components;
 pub mod mode;
-pub mod state;
 
 use std::fmt::Display;
 
@@ -21,10 +20,12 @@ use crate::{
             TTermMode, TTermModeVariant,
             terminal::{
                 TerminalMode, TerminalModeMessage, TerminalModeState, TerminalModeTabAction,
+                state::{directory_tree::DirectoryTreeState, tabs::TabsState},
             },
-            webview::{WebViewMode, WebViewModeMessage, WebViewModeState},
+            webview::{
+                WebViewMode, WebViewModeMessage, WebViewModeState, state::webview::WebViewState,
+            },
         },
-        state::{directory_tree::DirectoryTreeState, tabs::TabsState, webview::WebViewState},
     },
     config::{Config, presets::PresetConfig},
 };
