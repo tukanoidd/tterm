@@ -41,6 +41,7 @@ strum = "0.28"
 
 serde = "1.0"
 ron = "0.12"
+serde_json = "1.0"
 
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -117,6 +118,7 @@ strum = { workspace = true, features = ["derive"] }
 
 serde = { workspace = true, features = ["derive"] }
 ron.workspace = true
+serde_json.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
@@ -125,11 +127,6 @@ rootcause.workspace = true
 rootcause-backtrace.workspace = true
 
 [profile.release]
-strip = true
-opt-level = "z"
-lto = true
-
-[profile.dev]
 strip = true
 opt-level = "z"
 lto = true

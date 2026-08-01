@@ -13,6 +13,9 @@ pub struct Cli {
 
     #[arg(short, long, value_enum, default_value_t = LogLevel::default())]
     pub log_level: LogLevel,
+
+    #[arg(long)]
+    pub print_default_json_config: bool,
 }
 
 #[derive(Default, Debug, Display, Clone, Copy, ValueEnum)]

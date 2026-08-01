@@ -1,6 +1,9 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+    home-manager.url = "github:nix-community/home-manager";
+
     nci = {
       url = "github:90-008/nix-cargo-integration";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -9,7 +12,6 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
-    home-manager.url = "github:nix-community/home-manager";
 
     iced-comet = {
       # 0.14.0 tag
@@ -44,6 +46,7 @@
       perSystem = {
         pkgs,
         config,
+        system,
         ...
       }: let
         outputs = config.nci.outputs;
@@ -86,7 +89,7 @@
 
                   NIX_CFLAGS_COMPILE = "-Wno-error=format-security";
 
-                  MOZJS_ARCHIVE = inputs."mozjs-${pkgs.stdenv.hostPlatform.system}";
+                  MOZJS_ARCHIVE = inputs."mozjs-${system}";
                 };
               };
             in {
@@ -117,7 +120,15 @@
             cargo-expand
 
             icedCometOutputs.packages.release
+
+            sccache
           ];
+
+          shellHook =
+            (old.shellHook or "")
+            + ''
+              export RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
+            '';
         });
         packages.default = ttermOutputs.packages.release;
       };
@@ -140,27 +151,49 @@
                 default = pkg;
                 description = "tterm package derivation";
               };
-              configFilePath = mkOption {
-                type = types.str;
-                default = ".config/tterm/config.ron";
-                description = "Path to config file in $HOME";
-              };
               configFile = mkOption {
                 type = types.nullOr types.path;
                 default = null;
-                description = "Path to .ron config file to link to the 'configFilePath' location";
+                description = "Path to .ron/.json config file to link to the '~/.config/tterm/config.[ron/json]'";
+              };
+              config = mkOption {
+                type = types.nullOr types.attrs;
+                default = builtins.fromJSON (builtins.readFile ./assets/config/default.json);
+                description = "Nix expression resolving to config.json file";
               };
             };
           };
 
           config = mkIf cfg.enable {
-            home = {
-              packages = [cfg.package];
+            xdg = {
+              configFile = let
+                makeFile = (cfg.config != null) || (cfg.configFile != null);
 
-              file.${cfg.configFilePath} = mkIf (cfg.configFile != null) {
-                source = cfg.configFile;
+                isJsonPath = (lib.strings.match ".+\\.json" (builtins.toString cfg.configFile)) != null;
+
+                ext =
+                  if cfg.configFile != null && !isJsonPath
+                  then "ron"
+                  else "json";
+              in {
+                "tterm/config.${ext}" = mkIf makeFile {
+                  text =
+                    if (cfg.configFile != null)
+                    then (builtins.readFile cfg.configFile)
+                    else (builtins.toJSON cfg.config);
+                };
+              };
+
+              desktopEntries.tterm = {
+                categories = ["System" "Development" "Network"];
+                exec = "tterm";
+                genericName = "Terminal Emulator";
+                name = "TTerm";
+                terminal = false;
               };
             };
+
+            home.packages = [cfg.package];
           };
         };
     });

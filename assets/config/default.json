@@ -1,0 +1,302 @@
+{
+  "general": {
+    "reactive_panels": true,
+    "theme": "KanagawaDragon"
+  },
+  "presets": {
+    "default": null,
+    "list": []
+  },
+  "terminal_mode": {
+    "terminal": {
+      "font": {
+        "size": 20.0,
+        "scale_factor": 1.0,
+        "font_type": null,
+        "use_embedded_font": "JetBrainsMonoNerdFontMonoBold"
+      },
+      "theme": {
+        "color_pallete": {
+          "background": "#181818",
+          "foreground": "#d8d8d8",
+          "black": "#181818",
+          "red": "#ac4242",
+          "green": "#90a959",
+          "yellow": "#f4bf75",
+          "blue": "#6a9fb5",
+          "magenta": "#aa759f",
+          "cyan": "#75b5aa",
+          "white": "#d8d8d8",
+          "dim_foreground": "#828482",
+          "dim_black": "#0f0f0f",
+          "dim_red": "#712b2b",
+          "dim_green": "#5f6f3a",
+          "dim_yellow": "#a17e4d",
+          "dim_blue": "#456877",
+          "dim_magenta": "#704d68",
+          "dim_cyan": "#4d7770",
+          "dim_white": "#8e8e8e",
+          "bright_black": "#6b6b6b",
+          "bright_red": "#c55555",
+          "bright_green": "#aac474",
+          "bright_yellow": "#feca88",
+          "bright_blue": "#82b8c8",
+          "bright_magenta": "#c28cb8",
+          "bright_cyan": "#93d3c3",
+          "bright_white": "#f8f8f8",
+          "bright_foreground": null
+        }
+      },
+      "shell": null,
+      "scroll_acceleration": 3.0
+    },
+    "keybinds": {
+      "actions": [
+        [
+          "Tab",
+          [
+            [
+              "Ctrl+Shift+T",
+              {
+                "Tab": {
+                  "New": null
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+W",
+              {
+                "Tab": "CloseFocused"
+              }
+            ],
+            [
+              "Ctrl+Shift+1",
+              {
+                "Tab": {
+                  "Select": 0
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+2",
+              {
+                "Tab": {
+                  "Select": 1
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+3",
+              {
+                "Tab": {
+                  "Select": 2
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+4",
+              {
+                "Tab": {
+                  "Select": 3
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+5",
+              {
+                "Tab": {
+                  "Select": 4
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+6",
+              {
+                "Tab": {
+                  "Select": 5
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+7",
+              {
+                "Tab": {
+                  "Select": 6
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+8",
+              {
+                "Tab": {
+                  "Select": 7
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+9",
+              {
+                "Tab": {
+                  "Select": 8
+                }
+              }
+            ],
+            [
+              "Ctrl+Shift+E",
+              {
+                "Tab": "FocusedToggleFloating"
+              }
+            ],
+            [
+              "Ctrl+Shift+S",
+              {
+                "Tab": "FocusedTogglePaneStacking"
+              }
+            ],
+            [
+              "Ctrl+Shift+R",
+              {
+                "Tab": "ToggleRename"
+              }
+            ]
+          ]
+        ],
+        [
+          "Pane",
+          [
+            [
+              "Alt+V",
+              {
+                "Pane": {
+                  "SplitFocused": "Vertical"
+                }
+              }
+            ],
+            [
+              "Alt+H",
+              {
+                "Pane": {
+                  "SplitFocused": "Horizontal"
+                }
+              }
+            ],
+            [
+              "Alt+W",
+              {
+                "Pane": "CloseFocused"
+              }
+            ],
+            [
+              "Alt+Shift+ArrowLeft",
+              {
+                "Pane": {
+                  "MoveFocused": "Left"
+                }
+              }
+            ],
+            [
+              "Alt+Shift+ArrowRight",
+              {
+                "Pane": {
+                  "MoveFocused": "Right"
+                }
+              }
+            ],
+            [
+              "Alt+Shift+ArrowUp",
+              {
+                "Pane": {
+                  "MoveFocused": "Up"
+                }
+              }
+            ],
+            [
+              "Alt+Shift+ArrowDown",
+              {
+                "Pane": {
+                  "MoveFocused": "Down"
+                }
+              }
+            ]
+          ]
+        ],
+        [
+          "General",
+          [
+            [
+              "Alt+ArrowLeft",
+              {
+                "General": {
+                  "Focus": "Left"
+                }
+              }
+            ],
+            [
+              "Alt+ArrowRight",
+              {
+                "General": {
+                  "Focus": "Right"
+                }
+              }
+            ],
+            [
+              "Alt+ArrowUp",
+              {
+                "General": {
+                  "Focus": "Up"
+                }
+              }
+            ],
+            [
+              "Alt+ArrowDown",
+              {
+                "General": {
+                  "Focus": "Down"
+                }
+              }
+            ],
+            [
+              "Alt+Shift+E",
+              {
+                "General": "DirectoryTreeToggle"
+              }
+            ],
+            [
+              "Alt+Shift+B",
+              {
+                "General": "ToWebView"
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  },
+  "webview_mode": {
+    "base": {
+      "default_url": "https://duckduckgo.com",
+      "scroll_acceleration": 10.0
+    },
+    "keybinds": {
+      "actions": [
+        [
+          "General",
+          [
+            [
+              "Ctrl+R",
+              {
+                "General": "Refresh"
+              }
+            ],
+            [
+              "Alt+Shift+T",
+              {
+                "General": "ToTerminal"
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  }
+}

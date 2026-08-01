@@ -8,9 +8,10 @@ use std::sync::OnceLock;
 use clap::Parser;
 use iced::advanced::graphics::core::window;
 use iced_fonts::LUCIDE_FONT_BYTES;
-use rootcause::{Result, hooks::Hooks};
+use rootcause::{Result, hooks::Hooks, prelude::*};
 use rootcause_backtrace::BacktraceCollector;
 use tracing_subscriber::prelude::*;
+
 use tterm_macros::fonts;
 
 use crate::{
@@ -30,8 +31,17 @@ fn main() -> Result<()> {
         preset,
         print_default_config,
         log_level,
-        ..
+        print_default_json_config,
     } = Cli::parse();
+
+    if print_default_json_config {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&Config::default()).map_err(|err| report!("{err}"))?
+        );
+        return Ok(());
+    }
+
     let _ = CLI_PRESET.set(preset);
 
     init_tracing(log_level)?;

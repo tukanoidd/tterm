@@ -9894,6 +9894,7 @@ dependencies = [
  "rootcause",
  "rootcause-backtrace",
  "serde",
+ "serde_json",
  "shellexpand",
  "smart-default",
  "strum",

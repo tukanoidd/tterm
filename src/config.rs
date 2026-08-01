@@ -7,7 +7,7 @@ pub mod webview;
 
 use derive_more::AsRef;
 use directories::ProjectDirs;
-use rootcause::{Result, option_ext::OptionExt};
+use rootcause::{Result, option_ext::OptionExt, prelude::*};
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
@@ -39,23 +39,51 @@ impl Config {
             tokio::fs::create_dir_all(config_dir).await?;
         }
 
-        let config_path = config_dir.join("config.ron");
+        let config_path = ["json", "ron"]
+            .into_iter()
+            .find_map(|ext| {
+                let path = config_dir.join(format!("config.{ext}"));
 
-        let options = Self::ron_options();
+                match path.exists() {
+                    true => Some(path),
+                    false => match ext {
+                        "ron" => Some(path),
+                        _ => None,
+                    },
+                }
+            })
+            .unwrap();
 
-        let config = match config_path.exists() {
-            true => options.from_str(&tokio::fs::read_to_string(config_path).await?)?,
-            false => {
-                tracing::warn!("Config at {config_path:?} was not found, creating default...");
+        let config = match config_path
+            .extension()
+            .ok_or_report()?
+            .to_str()
+            .ok_or_report()?
+        {
+            "ron" => {
+                let options = Self::ron_options();
 
-                let config = Config::default();
-                let config_str = options.to_string_pretty(&config, Self::ron_pretty_config())?;
+                match config_path.exists() {
+                    true => options.from_str(&tokio::fs::read_to_string(config_path).await?)?,
+                    false => {
+                        tracing::warn!(
+                            "Config at {config_path:?} was not found, creating default..."
+                        );
 
-                let mut file = tokio::fs::File::create(config_path).await?;
-                file.write_all(config_str.as_bytes()).await?;
+                        let config = Config::default();
+                        let config_str =
+                            options.to_string_pretty(&config, Self::ron_pretty_config())?;
 
-                config
+                        let mut file = tokio::fs::File::create(config_path).await?;
+                        file.write_all(config_str.as_bytes()).await?;
+
+                        config
+                    }
+                }
             }
+            "json" => serde_json::from_str(&tokio::fs::read_to_string(config_path).await?)
+                .map_err(|err| report!("{err}"))?,
+            _ => unreachable!(),
         };
 
         Ok(config)
