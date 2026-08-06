@@ -20,7 +20,7 @@ mode! {
     WebView: {
         message: {
             WebViewCreatedView,
-            WebView(iced_webview::Action),
+            WebView(iced_servo::Action),
             UpdateUrlInput(String),
 
             IcedEvent(iced::Event),

@@ -4,15 +4,14 @@ use iced::{
     widget::{button, column, row, text_input},
 };
 use iced_fonts::lucide;
-use iced_webview::WebView;
+use iced_servo::WebView;
 
 use crate::app::{
     AppElement, AppMsg,
     mode::webview::{WebViewModeGeneralAction, WebViewModeMessage, state::webview::WebViewState},
 };
 
-pub type WebViewEngine = iced_webview::Servo;
-pub type AppWebView = WebView<WebViewEngine, AppMsg>;
+pub type AppWebView = WebView<AppMsg>;
 
 pub struct WebViewModal<'a> {
     state: &'a WebViewState,
@@ -34,7 +33,7 @@ impl<'a> WebViewModal<'a> {
                     .on_input(|new_url| WebViewModeMessage::UpdateUrlInput(new_url).into())
                     .on_submit(AppMsg::from_result(
                         url::Url::parse(&state.url_input)
-                            .map(iced_webview::Action::GoToUrl)
+                            .map(iced_servo::Action::GoToUrl)
                             .map(WebViewModeMessage::WebView),
                         Into::into,
                         false

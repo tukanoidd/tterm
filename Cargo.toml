@@ -17,9 +17,7 @@ iced_fonts = "0.3"
 iced-swdir-tree = "0.9"
 # iced_term = "0.8"
 iced_term.git = "https://github.com/Harzu/iced_term"
-# Atm think its a temporary change, depending on how this will chug along with 0.15 iced and so on
-# iced_webview_v2 = { git = "https://github.com/franzos/iced_webview_v2", default-features = false }
-iced_webview_v2 = { git = "https://github.com/tukanoidd/iced_webview_v2", branch = "latest_servo", default-features = false }
+iced_servo = { git = "https://github.com/tukanoidd/iced_servo", branch = "strip_everything_but_servo" }
 
 directories = "6.0"
 shellexpand = "3.1"
@@ -92,7 +90,7 @@ iced_aw = { workspace = true, features = [
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
 iced_term.workspace = true
-iced_webview_v2 = { workspace = true, features = ["servo"] }
+iced_servo.workspace = true
 
 directories.workspace = true
 shellexpand.workspace = true
