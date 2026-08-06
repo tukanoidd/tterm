@@ -112,9 +112,9 @@ dependencies = [
 
 [[package]]
 name = "alacritty_terminal"
-version = "0.25.1"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46319972e74179d707445f64aaa2893bbf6a111de3a9af29b7eb382f8b39e282"
+checksum = "bda177466b9524d59f1b12f0dd30b68696788e9992a7e959021c4a0ed96fcf59"
 dependencies = [
  "base64",
  "bitflags 2.13.1",
@@ -3496,7 +3496,7 @@ dependencies = [
 [[package]]
 name = "iced_servo"
 version = "0.1.0"
-source = "git+https://github.com/tukanoidd/iced_servo?branch=strip_everything_but_servo#d949caf01858d926f069bfd406686d537810ec1b"
+source = "git+https://github.com/tukanoidd/iced_servo#f4e023d86a8d097598c93137309d3606a0d0fcf1"
 dependencies = [
  "dpi",
  "euclid",
@@ -3512,15 +3512,15 @@ dependencies = [
 
 [[package]]
 name = "iced_term"
-version = "0.8.0"
-source = "git+https://github.com/Harzu/iced_term#af858d9893ccdaddda4a7e7425c1926fd411f547"
+version = "0.1.0"
+source = "git+https://github.com/tukanoidd/iced_term#0f384dcad2eb6088df4ed70b73dbdf09c5bdb39c"
 dependencies = [
  "alacritty_terminal",
- "anyhow",
  "iced",
  "iced_core",
  "iced_graphics",
  "open",
+ "rootcause",
  "tokio",
 ]
 
@@ -8851,9 +8851,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "signal-hook"
-version = "0.3.18"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2"
+checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
 dependencies = [
  "libc",
  "signal-hook-registry",

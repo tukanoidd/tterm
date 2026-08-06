@@ -20,7 +20,7 @@ static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 use crate::{
     app::{
-        AppElement, AppMsg, AppSubscription, AppTask,
+        AppElement, AppMsg, AppRenderer, AppSubscription, AppTask, AppTheme,
         mode::{
             TTermMode,
             terminal::{TerminalMode, TerminalModePaneAction},
@@ -40,7 +40,7 @@ pub struct PaneState {
     pub pwd: PathBuf,
 
     #[debug(skip)]
-    terminal: Terminal,
+    terminal: Terminal<AppRenderer>,
 }
 
 #[bon]
@@ -148,7 +148,7 @@ impl PaneState {
             .on_enter(<TerminalMode as TTermMode>::Message::FocusPane(self.id).into()),
         )
         .padding(4)
-        .style(move |theme| {
+        .style(move |theme: &AppTheme| {
             let palette = theme.extended_palette();
 
             let style = container::bordered_box(theme);
@@ -248,7 +248,7 @@ impl PaneState {
     }
 
     pub fn focus(&self) -> AppTask {
-        TerminalView::focus(self.terminal.widget_id().clone())
+        TerminalView::<AppRenderer>::focus(self.terminal.widget_id().clone())
     }
 }
 
