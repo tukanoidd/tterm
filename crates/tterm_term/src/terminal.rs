@@ -1,19 +1,28 @@
-use crate::AlacrittyEvent;
-use crate::actions::Action;
-use crate::backend;
-use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
-use crate::font::TermFont;
-use crate::settings::{FontSettings, Settings, ThemeSettings};
-use crate::theme::{ColorPalette, Theme};
-use iced::Subscription;
-use iced::futures::stream::BoxStream;
-use iced::futures::{SinkExt, StreamExt};
-use iced::widget::canvas::Cache;
-use std::hash::{Hash, Hasher};
-use std::io::Result;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::sync::mpsc::{self, Receiver};
+use std::{
+    hash::{Hash, Hasher},
+    io::Result,
+    sync::Arc,
+};
+
+use iced::{
+    Subscription,
+    futures::{SinkExt, StreamExt, stream::BoxStream},
+    widget::canvas::Cache,
+};
+use tokio::sync::{
+    Mutex,
+    mpsc::{self, Receiver},
+};
+
+use crate::{
+    AlacrittyEvent,
+    actions::Action,
+    backend,
+    bindings::{Binding, BindingAction, BindingsLayout, InputKind},
+    font::TermFont,
+    settings::{FontSettings, Settings, ThemeSettings},
+    theme::{ColorPalette, Theme},
+};
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -95,6 +104,7 @@ where
         };
 
         self.sync_and_redraw();
+
         action
     }
 
@@ -130,10 +140,12 @@ impl Hash for TerminalSubscriptionData {
 fn terminal_subscription_stream(data: &TerminalSubscriptionData) -> BoxStream<'static, Event> {
     let id = data.id;
     let event_receiver = data.event_receiver.clone();
+
     iced::stream::channel(1000, async move |mut output| {
         let mut shutdown = false;
         loop {
             let mut event_receiver = event_receiver.lock().await;
+
             match event_receiver.recv().await {
                 Some(event) => {
                     if let AlacrittyEvent::Exit = event {
