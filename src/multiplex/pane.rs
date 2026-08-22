@@ -12,11 +12,10 @@ use iced::{
     widget::{button, column, container, mouse_area, pane_grid, text},
 };
 use iced_aw::ContextMenu;
-use iced_term::{TermMode, Terminal, TerminalView};
 use rootcause::Result;
 use uuid::Uuid;
 
-static TERM_ID: AtomicU64 = AtomicU64::new(0);
+use tterm_term::{TermMode, Terminal, TerminalView};
 
 use crate::{
     app::{
@@ -32,6 +31,8 @@ use crate::{
         terminal::TerminalConfig,
     },
 };
+
+static TERM_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug)]
 pub struct PaneState {
@@ -74,10 +75,10 @@ impl PaneState {
         };
         let mut terminal = Terminal::new(
             term_id,
-            iced_term::settings::Settings {
+            tterm_term::settings::Settings {
                 font: font.clone().into(),
                 theme: theme.clone().into(),
-                backend: iced_term::settings::BackendSettings {
+                backend: tterm_term::settings::BackendSettings {
                     program: program
                         .map(|p| shellexpand::full(&p).map(|p| p.to_string()))
                         .or_else(|| {
@@ -94,20 +95,20 @@ impl PaneState {
                 },
             },
         )?;
-        terminal.handle(iced_term::Command::AddBindings(
+        terminal.handle(tterm_term::Command::AddBindings(
             keybinds_config
                 .actions
                 .iter()
                 .flat_map(|(_, l)| l)
                 .map(|(KeyBind { key, modifiers }, _)| {
                     (
-                        iced_term::bindings::Binding {
+                        tterm_term::bindings::Binding {
                             target: match key {
                                 Key::Named(named_key) => {
-                                    iced_term::bindings::InputKind::KeyCode((*named_key).into())
+                                    tterm_term::bindings::InputKind::KeyCode((*named_key).into())
                                 }
                                 Key::Character(char) => {
-                                    iced_term::bindings::InputKind::Char(char.clone())
+                                    tterm_term::bindings::InputKind::Char(char.clone())
                                 }
                             },
                             modifiers: modifiers.iter().fold(Modifiers::empty(), |ms, m| {
@@ -120,7 +121,7 @@ impl PaneState {
                             terminal_mode_include: TermMode::empty(),
                             terminal_mode_exclude: TermMode::all(),
                         },
-                        iced_term::bindings::BindingAction::Ignore,
+                        tterm_term::bindings::BindingAction::Ignore,
                     )
                 })
                 .collect(),
@@ -177,13 +178,13 @@ impl PaneState {
 
     pub fn update(&mut self, msg: &PaneMessage, is_focused: bool) -> Option<AppTask> {
         match msg {
-            PaneMessage::TerminalMsg(iced_term::Event::BackendCall(_, command)) => {
+            PaneMessage::TerminalMsg(tterm_term::Event::BackendCall(_, command)) => {
                 let action = self
                     .terminal
-                    .handle(iced_term::Command::ProxyToBackend(command.clone()));
+                    .handle(tterm_term::Command::ProxyToBackend(command.clone()));
 
                 match action {
-                    iced_term::actions::Action::Shutdown => {
+                    tterm_term::actions::Action::Shutdown => {
                         return Some(AppTask::done(
                             <TerminalMode as TTermMode>::Message::from(IdPaneMessage {
                                 id: self.id,
@@ -192,7 +193,7 @@ impl PaneState {
                             .into(),
                         ));
                     }
-                    iced_term::actions::Action::ChangeTitle(new_title) => {
+                    tterm_term::actions::Action::ChangeTitle(new_title) => {
                         let maybe_path = PathBuf::from(new_title.clone());
 
                         let mut pwd_switched = false;
@@ -264,5 +265,5 @@ pub enum PaneMessage {
     Dragged(pane_grid::DragEvent),
     Close,
 
-    TerminalMsg(iced_term::Event),
+    TerminalMsg(tterm_term::Event),
 }

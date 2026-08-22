@@ -1,5 +1,5 @@
 # What
-Terminal Emulator written in Rust with the help of Iced frawework and iced_term crate
+Terminal Emulator written in Rust with the help of Iced frawework and iced_term (vendored and modified) hard fork
 
 # Why
 I love zellij, but kdl makes me want to tinker with it less, and I am not the biggest fan

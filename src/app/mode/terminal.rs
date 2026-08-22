@@ -379,9 +379,9 @@ mode! {
                         return AppTask::done(
                             <TerminalMode as TTermMode>::Message::Pane(IdPaneMessage {
                                 id: focused_pane.id,
-                                msg: PaneMessage::TerminalMsg(iced_term::Event::BackendCall(
+                                msg: PaneMessage::TerminalMsg(tterm_term::Event::BackendCall(
                                     focused_pane.term_id,
-                                    iced_term::BackendCommand::Scroll(scroll_delta),
+                                    tterm_term::BackendCommand::Scroll(scroll_delta),
                                 )),
                             })
                             .into(),

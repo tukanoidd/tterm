@@ -1,7 +1,8 @@
 use iced::Font;
-use iced_term::settings::{FontSettings, ThemeSettings};
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
+
+use tterm_term::settings::{FontSettings, ThemeSettings};
 
 use crate::fonts::EmbeddedFont;
 
@@ -142,7 +143,7 @@ pub enum FontStyle {
 #[serde(default)]
 pub struct TerminalThemeConfig {
     #[serde(with = "TerminalColorPalette")]
-    pub color_pallete: iced_term::ColorPalette,
+    pub color_pallete: tterm_term::ColorPalette,
 }
 
 impl From<TerminalThemeConfig> for ThemeSettings {
@@ -159,8 +160,9 @@ macro_rules! color_palette {
         $(,)?
     ) => {
         #[derive(SmartDefault, Debug, Clone, Serialize, Deserialize)]
-        #[serde(default, remote = "iced_term::ColorPalette")]
+        #[serde(default, remote = "tterm_term::ColorPalette")]
         pub struct TerminalColorPalette {
+
             $($(#[default($default.into())])? pub $name: $ty),+
         }
     };

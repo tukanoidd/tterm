@@ -3511,20 +3511,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iced_term"
-version = "0.1.0"
-source = "git+https://github.com/tukanoidd/iced_term#2ad6dad3e6e97a8952959a2bd0a4385bc8f6fd16"
-dependencies = [
- "alacritty_terminal",
- "iced",
- "iced_core",
- "iced_graphics",
- "open",
- "rootcause",
- "tokio",
-]
-
-[[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10097,7 +10083,6 @@ dependencies = [
  "iced_aw",
  "iced_fonts",
  "iced_servo",
- "iced_term",
  "itertools 0.15.0",
  "ordered-float",
  "ron 0.12.2",
@@ -10112,6 +10097,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tterm-macros",
+ "tterm_term",
  "url",
  "uuid",
 ]
@@ -10122,10 +10108,22 @@ version = "0.1.0"
 dependencies = [
  "chumsky",
  "convert_case 0.11.0",
- "darling 0.23.0",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
+]
+
+[[package]]
+name = "tterm_term"
+version = "0.1.0"
+dependencies = [
+ "alacritty_terminal",
+ "iced",
+ "iced_core",
+ "iced_graphics",
+ "open",
+ "rootcause",
+ "tokio",
 ]
 
 [[package]]
