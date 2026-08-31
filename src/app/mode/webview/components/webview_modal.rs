@@ -4,7 +4,7 @@ use iced::{
     widget::{button, column, row, text_input},
 };
 use iced_fonts::lucide;
-use iced_servo::WebView;
+use tterm_servo::WebView;
 
 use crate::app::{
     AppElement, AppMsg,
@@ -33,7 +33,7 @@ impl<'a> WebViewModal<'a> {
                     .on_input(|new_url| WebViewModeMessage::UpdateUrlInput(new_url).into())
                     .on_submit(AppMsg::from_result(
                         url::Url::parse(&state.url_input)
-                            .map(iced_servo::Action::GoToUrl)
+                            .map(tterm_servo::Action::GoToUrl)
                             .map(WebViewModeMessage::WebView),
                         Into::into,
                         false

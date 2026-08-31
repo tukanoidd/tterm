@@ -1,0 +1,47 @@
+[package]
+name = "tterm_servo"
+version = "0.1.0"
+edition = "2024"
+description = "An easily embedded servo webview library for iced"
+authors = [
+  "LegitCamper",
+  "Franz Geffke <mail@gofranz.com>",
+  "Vitalii Lukyanov <tukanoid@outlook.com>",
+]
+repository = "https://github.com/tukanoidd/tterm_servo/"
+license = "Apache-2.0"
+readme = "README.md"
+
+[lib]
+name = "tterm_servo"
+
+[package.metadata.docs.rs]
+features = ["docs_only"]
+all-features = false
+no-default-features = true
+
+[features]
+default = []
+docs_only = []
+
+[dependencies]
+iced = { workspace = true, features = ["advanced", "image", "tokio", "lazy"] }
+
+tokio = { workspace = true, features = ["rt", "sync"] }
+
+rand = "0.10"
+url.workspace = true
+smol_str = { workspace = true, optional = true }
+
+# Servo engine deps
+servo = { workspace = true, features = ["webgpu"] }
+urlencoding.workspace = true
+rustls = { workspace = true, features = [
+  "logging",
+  "std",
+  "tls12",
+  "aws_lc_rs",
+] }
+euclid.workspace = true
+keyboard-types.workspace = true
+dpi.workspace = true

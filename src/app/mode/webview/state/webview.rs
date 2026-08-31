@@ -1,5 +1,5 @@
 use iced::mouse;
-use iced_servo::{PageType, WebView};
+use tterm_servo::{PageType, WebView};
 
 use crate::{
     app::{
@@ -27,7 +27,7 @@ impl WebViewState {
             url_input: default_url.clone(),
         };
         let task = AppTask::done(
-            WebViewModeMessage::WebView(iced_servo::Action::CreateView(PageType::Url(default_url)))
+            WebViewModeMessage::WebView(tterm_servo::Action::CreateView(PageType::Url(default_url)))
                 .into(),
         );
 
@@ -36,11 +36,11 @@ impl WebViewState {
 
     pub fn created_view(&mut self) -> AppTask {
         self.url_input = self.webview.current_url().into();
-        AppTask::done(WebViewModeMessage::WebView(iced_servo::Action::ChangeView(0)).into())
+        AppTask::done(WebViewModeMessage::WebView(tterm_servo::Action::ChangeView(0)).into())
     }
 
-    pub fn action(&mut self, mut action: iced_servo::Action, config: &WebViewConfig) -> AppTask {
-        if let iced_servo::Action::SendMouseEvent(mouse::Event::WheelScrolled { delta }, _) =
+    pub fn action(&mut self, mut action: tterm_servo::Action, config: &WebViewConfig) -> AppTask {
+        if let tterm_servo::Action::SendMouseEvent(mouse::Event::WheelScrolled { delta }, _) =
             &mut action
         {
             match delta {
@@ -61,7 +61,7 @@ impl WebViewState {
     }
 
     pub fn refresh(&mut self) -> AppTask {
-        AppTask::done(WebViewModeMessage::WebView(iced_servo::Action::Refresh).into())
+        AppTask::done(WebViewModeMessage::WebView(tterm_servo::Action::Refresh).into())
     }
 
     pub fn subscription(&self) -> AppSubscription {

@@ -11,6 +11,7 @@ authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 
 [workspace.dependencies]
 tterm_term.path = "crates/tterm_term"
+tterm_servo.path = "crates/tterm_servo"
 
 clap = "4.6"
 
@@ -20,9 +21,16 @@ iced_core = "0.14"
 iced_aw = { version = "0.14", default-features = false }
 iced_fonts = "0.3"
 iced-swdir-tree = "0.9"
-iced_servo.git = "https://github.com/tukanoidd/iced_servo"
 
 alacritty_terminal = "0.26"
+
+# Servo engine deps
+servo = "0.5"
+urlencoding = "2"
+rustls = { version = "0.23", default-features = false }
+euclid = "0.22"
+keyboard-types = "0.8"
+dpi = "0.1"
 
 directories = "6.0"
 shellexpand = "3.1"
@@ -30,9 +38,11 @@ open = "5.3"
 
 tokio = "1.52"
 
+rand = "0.10"
 uuid = "1.23"
 url = "2.5"
-convert_case = "0.11"
+smol_str = "0.3"
+convert_case = "0.12"
 itertools = "0.15"
 
 chumsky = { version = "0.13", features = ["nightly"] }
@@ -96,7 +106,7 @@ iced_aw = { workspace = true, features = [
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
 tterm_term.workspace = true
-iced_servo.workspace = true
+tterm_servo.workspace = true
 
 directories.workspace = true
 shellexpand.workspace = true
@@ -134,6 +144,12 @@ rootcause-backtrace.workspace = true
 strip = true
 opt-level = "z"
 lto = true
+
+[profile.dev]
+incremental = true
+opt-level = "s"
+lto = "thin"
+
 
 [profile.dev.package."*"]
 opt-level = 3
