@@ -1,14 +1,14 @@
 [package]
 name = "tterm_servo"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 description = "An easily embedded servo webview library for iced"
 authors = [
   "LegitCamper",
   "Franz Geffke <mail@gofranz.com>",
   "Vitalii Lukyanov <tukanoid@outlook.com>",
 ]
-repository = "https://github.com/tukanoidd/tterm_servo/"
+repository.workspace = true
 license = "Apache-2.0"
 readme = "README.md"
 

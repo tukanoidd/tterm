@@ -92,6 +92,8 @@ impl WebViewPipeline {
     }
 }
 
+unsafe impl Sync for WebViewPipeline {}
+
 // Match the texture format to the surface's color space. The engine produces
 // sRGB-encoded bytes: an sRGB surface needs an sRGB texture (decoded on sample,
 // re-encoded on write); a non-sRGB (web-colors) surface needs a plain texture
