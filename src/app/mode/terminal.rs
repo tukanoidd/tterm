@@ -13,7 +13,7 @@ use crate::{
     app::{
         AppElement, AppMsg, AppSubscription, AppTask,
         mode::{
-            TTermMode, TTermModeVariant,
+            TTermMode,
             terminal::{
                 components::tab_bar::TabBar,
                 state::{directory_tree::DirectoryTreeState, tabs::TabsState},
@@ -103,7 +103,6 @@ mode! {
                     @[Alt] + @ArrowDown => (MoveFocusDirection::Down),
                 ],
                 DirectoryTreeToggle [ @[Alt+Shift] + "E" ],
-                ToWebView           [ @[Alt+Shift] + "B" ],
             ]
         };
         config: {
@@ -294,9 +293,6 @@ mode! {
                                         <TerminalMode as TTermMode>::Message::FocusPane(pane.id).into(),
                                     );
                                 }
-                            }
-                            TerminalModeGeneralAction::ToWebView => {
-                                return AppTask::done(AppMsg::SwitchMode(TTermModeVariant::WebView));
                             }
                         }
                     }

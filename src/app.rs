@@ -22,9 +22,6 @@ use crate::{
                 TerminalMode, TerminalModeMessage, TerminalModeState, TerminalModeTabAction,
                 state::{directory_tree::DirectoryTreeState, tabs::TabsState},
             },
-            webview::{
-                WebViewMode, WebViewModeMessage, WebViewModeState, state::webview::WebViewState,
-            },
         },
     },
     config::{Config, presets::PresetConfig},
@@ -85,18 +82,12 @@ impl App {
                 column![
                     match self.current_mode {
                         TTermModeVariant::Terminal => TerminalMode.view(config, state),
-                        TTermModeVariant::WebView => WebViewMode.view(config, state),
                     },
                     rule::horizontal(2),
                     match self.current_mode {
                         TTermModeVariant::Terminal => KeyBindBar::<TerminalMode>::new(
                             &config.terminal_mode.keybinds,
                             &state.terminal_mode.keybind_panel_expanded
-                        )
-                        .view(),
-                        TTermModeVariant::WebView => KeyBindBar::<WebViewMode>::new(
-                            &config.webview_mode.keybinds,
-                            &state.webview_mode.keybind_panel_expanded
                         )
                         .view(),
                     },
@@ -167,9 +158,6 @@ impl App {
                     }
                 };
 
-                let (webview_state, webview_init_task) =
-                    WebViewState::new(&config.webview_mode.base.default_url);
-
                 self.config = Some(config);
                 self.state = AppState::Main(Box::new(MainState {
                     terminal_mode: TerminalModeState {
@@ -178,18 +166,12 @@ impl App {
                         directory_tree: DirectoryTreeState::new(home_dir.clone()),
                         tabs: TabsState::default(),
                     },
-                    webview_mode: WebViewModeState {
-                        keybind_panel_expanded: Default::default(),
-
-                        webview: webview_state,
-                    },
                 }));
 
                 return AppTask::batch([
                     AppTask::done(AppMsg::TerminalMode(
                         DirectoryTreeEvent::Toggled(home_dir).into(),
                     )),
-                    webview_init_task,
                     match new_tab_tasks.is_empty() {
                         true => AppTask::done(TerminalModeTabAction::New(None).into()),
                         false => AppTask::batch(new_tab_tasks),
@@ -213,23 +195,10 @@ impl App {
 
                 return TerminalMode.update(msg, config, state);
             }
-            AppMsg::WebViewMode(msg) => {
-                let Some((config, state)) = self.config.as_ref().and_then(|config| match &mut self
-                    .state
-                {
-                    AppState::LoadingConfig => None,
-                    AppState::Main(main_state) => Some((config, main_state)),
-                }) else {
-                    return AppTask::none();
-                };
-
-                return WebViewMode.update(msg, config, state);
-            }
 
             AppMsg::IcedEvent(event) => {
                 return AppTask::done(match self.current_mode {
                     TTermModeVariant::Terminal => TerminalModeMessage::IcedEvent(event).into(),
-                    TTermModeVariant::WebView => WebViewModeMessage::IcedEvent(event).into(),
                 });
             }
         }
@@ -245,10 +214,7 @@ impl App {
             return AppSubscription::none();
         };
 
-        AppSubscription::batch([
-            TerminalMode.subscription(config, state),
-            WebViewMode.subscription(config, state),
-        ])
+        AppSubscription::batch([TerminalMode.subscription(config, state)])
     }
 
     fn load_config() -> AppTask {
@@ -266,7 +232,6 @@ pub enum AppState {
 #[derive(derive_more::AsRef, derive_more::AsMut)]
 pub struct MainState {
     pub terminal_mode: TerminalModeState,
-    pub webview_mode: WebViewModeState,
 }
 
 #[derive(Debug, Clone, From)]
@@ -284,7 +249,6 @@ pub enum AppMsg {
 
     SwitchMode(TTermModeVariant),
     TerminalMode(<TerminalMode as TTermMode>::Message),
-    WebViewMode(<WebViewMode as TTermMode>::Message),
 
     IcedEvent(Event),
 }

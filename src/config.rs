@@ -13,7 +13,7 @@ use smart_default::SmartDefault;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    app::mode::{terminal::TerminalModeConfig, webview::WebViewModeConfig},
+    app::mode::terminal::TerminalModeConfig,
     config::{general::GeneralConfig, presets::PresetsConfig},
 };
 
@@ -25,8 +25,6 @@ pub struct Config {
 
     #[as_ref]
     pub terminal_mode: TerminalModeConfig,
-    #[as_ref]
-    pub webview_mode: WebViewModeConfig,
 }
 
 impl Config {

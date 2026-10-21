@@ -67,10 +67,6 @@ impl<'a> TabBar<'a> {
                 )
         });
 
-        let toggle_webview_button = button(lucide::search())
-            .style(button::subtle)
-            .on_press(TerminalModeGeneralAction::ToWebView.into());
-
         container(
             row([
                 toggle_show_directory_tree_button.into(),
@@ -80,10 +76,7 @@ impl<'a> TabBar<'a> {
             ]
             .into_iter()
             .chain(current_tab_name_editor.map(|ed| ed.width(300).into()))
-            .chain([
-                space().width(Length::Fixed(15.0)).into(),
-                toggle_webview_button.into(),
-            ]))
+            .chain([space().width(Length::Fixed(15.0)).into()]))
             .align_y(Vertical::Center),
         )
         .padding(Padding::default().top(5).horizontal(5))

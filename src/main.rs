@@ -92,20 +92,7 @@ fn init_rootcause() -> Result<()> {
 
 fn init_tracing(log_level: LogLevel) -> Result<()> {
     const EXTERNAL_LEVELS: &[(&str, &[&str])] = &[
-        (
-            "error",
-            &[
-                "wgpu_hal",
-                "usvg",
-                "script",
-                "net",
-                "webrender",
-                "storage",
-                "servo_constellation",
-                "profile_traits",
-                "mozjs",
-            ],
-        ),
+        ("error", &["wgpu_hal"]),
         (
             "warn",
             &[
@@ -116,27 +103,7 @@ fn init_tracing(log_level: LogLevel) -> Result<()> {
                 "iced_wgpu",
                 "iced_winit",
                 "iced_graphics",
-                "alacritty_terminal",
-                "vte",
-                "calloop",
-                "zbus",
-                "style",
-                "selectors",
-                "layout",
-                "hyper_util",
-                "Connection",
-                "h2",
-                "rustls",
-                "fonts",
-                "html5ever",
-                "wr_glyph_rasterizer",
-                "profile",
-                "webgl",
-                "pixels",
-                "paint",
-                "surfman",
                 "winit",
-                "servo",
             ],
         ),
     ];

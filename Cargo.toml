@@ -11,7 +11,6 @@ authors = ["Vitalii Lukyanov <tukanoid@outlook.com>"]
 
 [workspace.dependencies]
 tterm_term.path = "crates/tterm_term"
-tterm_servo.path = "crates/tterm_servo"
 
 clap = "4.6"
 
@@ -23,14 +22,6 @@ iced_fonts = "0.3"
 iced-swdir-tree = "0.9"
 
 alacritty_terminal = "0.26"
-
-# Servo engine deps
-servo = "0.5"
-urlencoding = "2"
-rustls = { version = "0.23", default-features = false }
-euclid = "0.22"
-keyboard-types = "0.8"
-dpi = "0.1"
 
 directories = "6.0"
 shellexpand = "3.1"
@@ -60,6 +51,7 @@ serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
+thiserror = "2.0"
 rootcause = "0.13"
 rootcause-backtrace = "0.13"
 
@@ -106,7 +98,6 @@ iced_aw = { workspace = true, features = [
 iced_fonts = { workspace = true, features = ["lucide"] }
 iced-swdir-tree.workspace = true
 tterm_term.workspace = true
-tterm_servo.workspace = true
 
 directories.workspace = true
 shellexpand.workspace = true

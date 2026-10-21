@@ -1,5 +1,4 @@
 pub mod terminal;
-pub mod webview;
 
 use serde::{Deserialize, Serialize};
 use strum::VariantArray;
@@ -13,7 +12,7 @@ use crate::{
     },
 };
 
-modes![Terminal, WebView];
+modes![Terminal];
 
 pub trait TTermMode
 where
